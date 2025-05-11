@@ -3,26 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Truck, CreditCard } from 'lucide-react';
+import { useCartStore } from '../stores/cartStore'; // Importar el store del carrito
 import type { CartItem } from '../types';
 
 interface GuestCheckoutProps {
-  items: CartItem[];
-  total: number;
+  // items y total ahora vendrán del store, no como props
   onBack: () => void;
-  onSuccess: () => void;
+  onSuccess: () => void; // Esta función podría ser responsable de llamar a clearCart del store
 }
 
-console.log('GuestCheckout component script loaded (v7)');
+console.log('GuestCheckout component script loaded (v8)');
 
-export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSuccess }: GuestCheckoutProps) {
-  console.log('GuestCheckout (v7) rendering. Initial propItems:', propItems, 'Initial propTotal:', propTotal);
+export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
+  const { items: cartItems, total: cartTotal, clearCart: clearCartStoreAction } = useCartStore(); // Obtener estado y acciones del store
+  console.log('GuestCheckout (v8) rendering. Store items:', cartItems, 'Store total:', cartTotal);
 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  
-  const [currentItems, setCurrentItems] = useState<CartItem[]>([]);
-  const [currentTotal, setCurrentTotal] = useState<number>(0);
-  const [isStateInitialized, setIsStateInitialized] = useState(false);
+  const [isStateInitialized, setIsStateInitialized] = useState(false); // Para el formulario
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -35,134 +33,88 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
     paymentMethod: ''
   });
 
-  // Function to save all relevant checkout state to sessionStorage
-  const saveFullCheckoutStateToSession = useCallback(() => {
-    console.log('v7: Attempting to save full checkout state. currentItems:', currentItems, 'currentTotal:', currentTotal, 'formData:', formData);
-    if (currentItems && currentItems.length > 0 && currentTotal > 0) {
-      try {
-        sessionStorage.setItem('checkoutItems_v7', JSON.stringify(currentItems));
-        sessionStorage.setItem('checkoutTotal_v7', JSON.stringify(currentTotal));
-        console.log('v7: Saved currentItems and currentTotal to sessionStorage.');
-      } catch (error) {
-        console.error("v7: Error saving items/total to sessionStorage:", error);
-      }
-    }
+  // Función para guardar el estado del formulario en sessionStorage
+  const saveFormStateToSession = useCallback(() => {
+    console.log('v8: Attempting to save formData to sessionStorage:', formData);
     try {
-        sessionStorage.setItem('checkoutFormData_v7', JSON.stringify(formData));
-        console.log('v7: Saved formData to sessionStorage.');
+        sessionStorage.setItem('checkoutFormData_v8', JSON.stringify(formData));
+        console.log('v8: Saved formData to sessionStorage.');
     } catch (error) {
-        console.error("v7: Error saving formData to sessionStorage:", error);
+        console.error("v8: Error saving formData to sessionStorage:", error);
     }
-  }, [currentItems, currentTotal, formData]);
+  }, [formData]);
 
+  // Efecto para cargar el estado del formulario desde sessionStorage al montar
   useEffect(() => {
-    console.log('v7: Initializing state from props or sessionStorage.');
-    let initialItems: CartItem[] = [];
-    let initialTotal: number = 0;
+    console.log('v8: Initializing form state from sessionStorage.');
     let initialFormData = {
       fullName: '', email: '', phone: '', address: '', city: '', postalCode: '', country: 'Colombia', paymentMethod: ''
     };
 
-    const savedFormDataString = sessionStorage.getItem('checkoutFormData_v7');
+    const savedFormDataString = sessionStorage.getItem('checkoutFormData_v8');
     if (savedFormDataString) {
       try {
         initialFormData = { ...initialFormData, ...JSON.parse(savedFormDataString) };
-        console.log('v7: Loaded formData from sessionStorage:', initialFormData);
+        console.log('v8: Loaded formData from sessionStorage:', initialFormData);
       } catch (error) {
-        console.error("v7: Error parsing saved form data:", error);
-        sessionStorage.removeItem('checkoutFormData_v7');
-      }
-    }
-
-    if (propItems && propItems.length > 0 && typeof propTotal === 'number' && propTotal > 0) {
-      console.log('v7: Using valid propItems and propTotal for initialization:', propItems, propTotal);
-      initialItems = propItems;
-      initialTotal = propTotal;
-      // Immediately save valid props to session storage if they are provided
-      try {
-        console.log('v7: Saving valid propItems/propTotal to sessionStorage on initial load with props.');
-        sessionStorage.setItem('checkoutItems_v7', JSON.stringify(initialItems));
-        sessionStorage.setItem('checkoutTotal_v7', JSON.stringify(initialTotal));
-      } catch (error) {
-        console.error("v7: Error saving propItems/propTotal to sessionStorage on initial load:", error);
-      }
-    } else {
-      console.log('v7: propItems are empty or propTotal is zero/invalid. Attempting to load from sessionStorage.');
-      const savedItemsString = sessionStorage.getItem('checkoutItems_v7');
-      const savedTotalString = sessionStorage.getItem('checkoutTotal_v7');
-      if (savedItemsString && savedTotalString) {
-        try {
-          const savedItems = JSON.parse(savedItemsString);
-          const savedTotal = JSON.parse(savedTotalString);
-          if (savedItems && savedItems.length > 0 && typeof savedTotal === 'number' && savedTotal > 0) {
-            console.log('v7: Loaded items and total from sessionStorage:', savedItems, savedTotal);
-            initialItems = savedItems;
-            initialTotal = savedTotal;
-          } else {
-            console.log('v7: Invalid items or total found in sessionStorage during load attempt.');
-          }
-        } catch (error) {
-          console.error("v7: Error parsing saved items/total from sessionStorage:", error);
-          sessionStorage.removeItem('checkoutItems_v7');
-          sessionStorage.removeItem('checkoutTotal_v7');
-        }
+        console.error("v8: Error parsing saved form data from sessionStorage:", error);
+        sessionStorage.removeItem('checkoutFormData_v8'); // Limpiar si está corrupto
       }
     }
     
-    setCurrentItems(initialItems);
-    setCurrentTotal(initialTotal);
     setFormData(initialFormData);
     setIsStateInitialized(true);
-    console.log('v7: State initialization complete. currentItems:', initialItems, 'currentTotal:', initialTotal, 'formData:', initialFormData);
-
+    console.log('v8: Form state initialization complete. formData:', initialFormData);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propItems, propTotal]);
+  }, []); // Solo se ejecuta al montar
 
-  // This effect will run when formData, currentItems, or currentTotal changes *after* the initial setup.
-  // It's designed to keep sessionStorage updated if the user interacts with the form or if items/total change for other reasons.
+  // Efecto para guardar el estado del formulario en sessionStorage cuando cambie
   useEffect(() => {
     if (isStateInitialized) {
-      console.log('v7: isStateInitialized is true. Running effect to save full checkout state.');
-      saveFullCheckoutStateToSession();
+      console.log('v8: formData changed, saving to sessionStorage.');
+      saveFormStateToSession();
     }
-  }, [formData, currentItems, currentTotal, isStateInitialized, saveFullCheckoutStateToSession]);
+  }, [formData, isStateInitialized, saveFormStateToSession]);
 
-
+  // Determinar métodos de pago disponibles basados en los items del carrito del store
   const availablePaymentMethods = {
-    cash_on_delivery: currentItems.every(item => 
+    cash_on_delivery: cartItems.every(item => 
       item.product.allowed_payment_methods?.cash_on_delivery !== false
     ),
-    card: currentItems.every(item => 
+    card: cartItems.every(item => 
       item.product.allowed_payment_methods?.card !== false
     )
   };
 
+  // Efecto para auto-seleccionar método de pago si solo hay uno disponible
   useEffect(() => {
-    if (!isStateInitialized) return;
-    console.log('v7: useEffect for paymentMethod selection. Current paymentMethod:', formData.paymentMethod, 'Available:', availablePaymentMethods);
-    if (!formData.paymentMethod && currentItems && currentItems.length > 0) {
+    if (!isStateInitialized || !cartItems || cartItems.length === 0) return;
+    console.log('v8: useEffect for paymentMethod selection. Current paymentMethod:', formData.paymentMethod, 'Available:', availablePaymentMethods);
+    if (!formData.paymentMethod) {
       if (availablePaymentMethods.card && !availablePaymentMethods.cash_on_delivery) {
         setFormData(prev => ({ ...prev, paymentMethod: 'mercadopago' }));
+        console.log('v8: Auto-selected paymentMethod: mercadopago');
       } else if (availablePaymentMethods.cash_on_delivery && !availablePaymentMethods.card) {
         setFormData(prev => ({ ...prev, paymentMethod: 'cash_on_delivery' }));
+        console.log('v8: Auto-selected paymentMethod: cash_on_delivery');
       }
     }
-  }, [availablePaymentMethods.card, availablePaymentMethods.cash_on_delivery, formData.paymentMethod, currentItems, isStateInitialized]);
+  }, [availablePaymentMethods.card, availablePaymentMethods.cash_on_delivery, formData.paymentMethod, cartItems, isStateInitialized]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('v7: handleSubmit. formData:', formData, 'items:', currentItems, 'total:', currentTotal);
+    console.log('v8: handleSubmit. formData:', formData, 'Store items:', cartItems, 'Store total:', cartTotal);
     
-    // Explicitly save state one last time before submission logic
-    saveFullCheckoutStateToSession();
+    // Guardar estado del formulario una última vez antes de la lógica de envío
+    saveFormStateToSession();
 
     if (!formData.paymentMethod) {
       toast.error('Por favor selecciona un método de pago');
       return;
     }
-    if (!currentItems || currentItems.length === 0 || currentTotal <= 0) {
-      toast.error('No hay productos en tu pedido o el total es incorrecto. Por favor, vuelve a la tienda y selecciona un producto.');
-      console.error('v7: Validation failed: No items or total is zero/negative.');
+    if (!cartItems || cartItems.length === 0 || cartTotal <= 0) {
+      toast.error('No hay productos en tu pedido o el total es incorrecto. Por favor, vuelve a la tienda y añade productos al carrito.');
+      console.error('v8: Validation failed: No items in store or total is zero/negative.');
       setLoading(false);
       return;
     }
@@ -177,7 +129,7 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
           guest_info: { full_name: formData.fullName, email: formData.email, phone: formData.phone },
           shipping_address: { full_name: formData.fullName, address: formData.address, city: formData.city, postal_code: formData.postalCode, country: formData.country, phone: formData.phone },
           payment_method: formData.paymentMethod,
-          total: currentTotal,
+          total: cartTotal, // Usar total del store
           status: 'pending',
           payment_status: 'pending'
         })
@@ -186,9 +138,9 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
 
       if (orderError) throw new Error('Error al crear el pedido: ' + orderError.message);
       if (!order) throw new Error('No se pudo crear el pedido');
-      console.log('v7: Order created:', order);
+      console.log('v8: Order created in Supabase:', order);
 
-      const orderItemsData = currentItems.map(item => ({
+      const orderItemsData = cartItems.map(item => ({
         order_id: order.id,
         product_id: item.product.id,
         quantity: item.quantity,
@@ -198,16 +150,16 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
 
       const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData);
       if (itemsError) {
-        await supabase.from('orders').delete().eq('id', order.id);
+        await supabase.from('orders').delete().eq('id', order.id); // Rollback
         throw new Error('Error al crear los items del pedido: ' + itemsError.message);
       }
-      console.log('v7: Order items created.');
+      console.log('v8: Order items created in Supabase.');
 
       if (formData.paymentMethod === 'mercadopago') {
         toast.loading('Redirigiendo a Mercado Pago...');
         const paymentPayload = {
           orderId: order.id,
-          items: currentItems.map(cartItem => ({
+          items: cartItems.map(cartItem => ({
             product_id: cartItem.product.id,
             product_name: cartItem.product.name,
             product_description: cartItem.product.description || cartItem.product.name,
@@ -216,9 +168,9 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
             product_price: Number(cartItem.product.price),
             quantity: cartItem.quantity,
           })),
-          total: Number(currentTotal),
+          total: Number(cartTotal), // Usar total del store
         };
-        console.log('v7: Sending paymentPayload to create-payment:', paymentPayload);
+        console.log('v8: Sending paymentPayload to Supabase function create-payment:', paymentPayload);
 
         const { data: paymentData, error: paymentError } = await supabase.functions.invoke('create-payment', { body: paymentPayload });
         toast.dismiss();
@@ -226,27 +178,26 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
         if (paymentError || !paymentData || !paymentData.init_point) {
           await supabase.from('orders').update({ payment_status: 'failed', status: 'payment_creation_failed' }).eq('id', order.id);
           toast.error(paymentData?.error || paymentError?.message || 'Error al generar el enlace de pago.');
+          console.error('v8: Error creating MercadoPago preference:', paymentData?.error || paymentError?.message);
           setLoading(false);
           return;
         }
         
-        console.log('v7: MercadoPago preference OK. Clearing session & redirecting.');
-        sessionStorage.removeItem('checkoutFormData_v7');
-        sessionStorage.removeItem('checkoutItems_v7');
-        sessionStorage.removeItem('checkoutTotal_v7');
-        onSuccess();
+        console.log('v8: MercadoPago preference OK. Clearing checkout form data from session & redirecting.');
+        sessionStorage.removeItem('checkoutFormData_v8');
+        // onSuccess() es responsable de llamar a clearCartStoreAction() si el pago es exitoso
+        onSuccess(); 
         window.location.href = paymentData.init_point;
       } else { // Cash on delivery
-        console.log('v7: Cash on delivery. Clearing session & navigating.');
-        sessionStorage.removeItem('checkoutFormData_v7');
-        sessionStorage.removeItem('checkoutItems_v7');
-        sessionStorage.removeItem('checkoutTotal_v7');
-        onSuccess();
-        toast.success('¡Pedido realizado con éxito! Pago contra entrega');
+        console.log('v8: Cash on delivery order placed. Clearing checkout form data from session & navigating.');
+        sessionStorage.removeItem('checkoutFormData_v8');
+        // onSuccess() es responsable de llamar a clearCartStoreAction() aquí también
+        onSuccess(); 
+        toast.success('¡Pedido realizado con éxito! Pago contra entrega.');
         navigate('/pago', { state: { status: 'pending', orderId: order.id }});
       }
     } catch (error: any) {
-      console.error('v7: Error in handleSubmit:', error);
+      console.error('v8: Error in handleSubmit:', error);
       toast.error(error.message || 'Error al procesar el pedido.');
       setLoading(false);
     }
@@ -258,11 +209,11 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
   };
 
   if (!isStateInitialized) {
-    console.log('v7: State not yet initialized, rendering loading or minimal UI.');
+    console.log('v8: Form state not yet initialized, rendering loading or minimal UI.');
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p>Cargando checkout...</p></div>; 
   }
 
-  console.log('v7: Rendering full GuestCheckout. currentItems:', currentItems, 'currentTotal:', currentTotal, 'formData:', formData);
+  console.log('v8: Rendering full GuestCheckout. Store items:', cartItems, 'Store total:', cartTotal, 'Form data:', formData);
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -275,10 +226,10 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
         </div>
         <div className="mt-8">
           <div className="bg-white p-6 shadow rounded-lg">
-            {currentItems && currentItems.length > 0 ? (
+            {cartItems && cartItems.length > 0 ? (
               <div className="mb-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen del pedido</h3>
-                {currentItems.map((item, index) => (
+                {cartItems.map((item, index) => (
                   <div key={item.product.id ? `${item.product.id}-${index}` : index} className="flex justify-between items-center py-2 border-b">
                     <div>
                       <p className="font-medium">{item.product.name}</p>
@@ -360,14 +311,14 @@ export function GuestCheckout({ items: propItems, total: propTotal, onBack, onSu
                 </div>
               </div>
 
-              {currentItems && currentItems.length > 0 && currentTotal > 0 && (
+              {cartItems && cartItems.length > 0 && cartTotal > 0 && (
                 <div className="mt-8">
                   <h3 className="text-lg font-medium text-gray-900">Total</h3>
-                  <p className="text-3xl font-extrabold text-gray-900">${currentTotal.toFixed(2)}</p>
+                  <p className="text-3xl font-extrabold text-gray-900">${cartTotal.toFixed(2)}</p>
                 </div>
               )}
 
-              <button type="submit" disabled={loading || !formData.paymentMethod || !currentItems || currentItems.length === 0 || currentTotal <= 0} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+              <button type="submit" disabled={loading || !formData.paymentMethod || !cartItems || cartItems.length === 0 || cartTotal <= 0} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
                 {loading ? 'Procesando...' : (formData.paymentMethod === 'mercadopago' ? 'Pagar en línea' : 'Realizar pedido (Pago contra entrega)')}
               </button>
             </form>
