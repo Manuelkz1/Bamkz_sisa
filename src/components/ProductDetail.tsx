@@ -1,0 +1,303 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
+import { ArrowLeft, ShoppingCart, FileText, Share2 } from 'lucide-react';
+import type { Product } from '../types';
+import { useCartStore } from '../stores/cartStore';
+import { useAuthStore } from '../stores/authStore';
+
+export function ProductDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const cartStore = useCartStore();
+  const { user } = useAuthStore();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    loadProduct();
+  }, [id]);
+
+  const loadProduct = async () => {
+    try {
+      if (!id) return;
+
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      
+      setProduct(data);
+      if (data?.images?.length > 0) {
+        setSelectedImage(data.images[0]);
+      }
+      if (data?.available_colors?.length > 0) {
+        setSelectedColor(data.available_colors[0]);
+      }
+
+      // Load related products
+      const { data: related, error: relatedError } = await supabase
+        .from('products')
+        .select('*')
+        .neq('id', id)
+        .eq('category', data.category)
+        .limit(4);
+
+      if (!relatedError && related) {
+        setRelatedProducts(related);
+      }
+    } catch (error) {
+      console.error('Error loading product:', error);
+      toast.error('Error al cargar el producto');
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Enlace copiado al portapapeles');
+    } catch (err) {
+      toast.error('Error al copiar el enlace');
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    
+    if (product.available_colors?.length && !selectedColor) {
+      toast.error('Por favor selecciona un color');
+      return;
+    }
+
+    cartStore.addItem(product, 1, selectedColor);
+    toast.success('Producto agregado al carrito');
+  };
+
+  const handleBuyNow = () => {
+    if (!product) return;
+
+    if (product.available_colors?.length && !selectedColor) {
+      toast.error('Por favor selecciona un color');
+      return;
+    }
+
+    cartStore.clearCart();
+    cartStore.addItem(product, 1, selectedColor);
+    navigate('/checkout');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900">Producto no encontrado</h2>
+          <button
+            onClick={() => navigate('/')}
+            className="mt-4 inline-flex items-center text-indigo-600 hover:text-indigo-500"
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Volver al inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <button
+          onClick={() => navigate('/')}
+          className="mb-8 inline-flex items-center text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          Volver
+        </button>
+
+        <div className="lg:grid lg:grid-cols-2 lg:gap-x-8">
+          {/* Product images */}
+          <div className="space-y-4">
+            <div className="aspect-w-3 aspect-h-4 rounded-lg overflow-hidden">
+              <img
+                src={selectedImage || product.images?.[0]}
+                alt={product.name}
+                className="w-full h-full object-center object-cover"
+              />
+            </div>
+            
+            {product.images && product.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-4">
+                {product.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImage(image)}
+                    className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden ${
+                      selectedImage === image ? 'ring-2 ring-indigo-500' : ''
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${product.name} - Vista ${index + 1}`}
+                      className="w-full h-full object-center object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Product info */}
+          <div className="mt-10 px-4 sm:px-0 sm:mt-16 lg:mt-0">
+            <div className="flex justify-between items-start">
+              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">
+                {product.name}
+              </h1>
+              {user?.role === 'admin' && (
+                <button
+                  onClick={handleShare}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Compartir
+                </button>
+              )}
+            </div>
+
+            <div className="mt-3">
+              <h2 className="sr-only">Información del producto</h2>
+              <p className="text-3xl text-gray-900">${product.price}</p>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="sr-only">Descripción</h3>
+              <div className="text-base text-gray-700 space-y-6">
+                {product.description}
+              </div>
+            </div>
+
+            {product.available_colors && product.available_colors.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-sm font-medium text-gray-900">Colores disponibles</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {product.available_colors.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => setSelectedColor(color)}
+                      className={`px-3 py-1 rounded-full text-sm ${
+                        selectedColor === color
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {product.instructions_file && (
+              <div className="mt-6">
+                <a
+                  href={product.instructions_file}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-indigo-600 hover:text-indigo-500"
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  Ver instrucciones de uso
+                </a>
+              </div>
+            )}
+
+            <div className="mt-6">
+              <div className="flex items-center">
+                <div className="text-sm text-gray-700">
+                  Stock disponible: {product.stock}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 flex sm:flex-col1">
+              <button
+                onClick={handleAddToCart}
+                disabled={product.stock === 0}
+                className="max-w-xs flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 sm:w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ShoppingCart className="h-5 w-5 mr-2" />
+                Agregar al carrito
+              </button>
+
+              <button
+                onClick={handleBuyNow}
+                disabled={product.stock === 0}
+                className="max-w-xs flex-1 ml-4 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 sm:w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Comprar ahora
+              </button>
+            </div>
+
+            {product.category && (
+              <div className="mt-6">
+                <div className="text-sm text-gray-700">
+                  Categoría: {product.category}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Related Products */}
+        {relatedProducts.length > 0 && (
+          <div className="mt-16 border-t border-gray-200 pt-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Productos relacionados</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {relatedProducts.map((relatedProduct) => (
+                <div
+                  key={relatedProduct.id}
+                  onClick={() => navigate(`/product/${relatedProduct.id}`)}
+                  className="group relative cursor-pointer"
+                >
+                  <div className="aspect-w-1 aspect-h-1 rounded-lg overflow-hidden bg-gray-100">
+                    <img
+                      src={relatedProduct.images?.[0]}
+                      alt={relatedProduct.name}
+                      className="object-center object-cover group-hover:opacity-75 transition-opacity"
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="text-sm font-medium text-gray-900">
+                      {relatedProduct.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      ${relatedProduct.price}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
