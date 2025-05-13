@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Truck, CreditCard } from 'lucide-react';
-import { useCartStore } from '../stores/cart';
+import { useCartStore } from '../stores/cartStore';
 import { rehydrateCart } from '../utils/cart';
 
 export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
@@ -367,5 +367,3 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     </div>
   );
 }
-
-export { GuestCheckout }
