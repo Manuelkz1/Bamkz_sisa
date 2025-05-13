@@ -4,7 +4,6 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, Truck, CreditCard } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
-import { rehydrateCart } from '../utils/cart';
 
 export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
   const navigate = useNavigate();
@@ -50,7 +49,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     console.log('[GuestCheckout] Current cart state:', { items, total });
     
     if ((!items || items.length === 0) && total === 0) {
-      rehydrateCart(); // Try to rehydrate if cart is empty
+      cartStore.rehydrate(); // Use the rehydrate method from cartStore directly
     }
   }, []);
 
