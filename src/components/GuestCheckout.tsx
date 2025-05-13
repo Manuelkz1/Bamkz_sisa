@@ -74,10 +74,10 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[GuestCheckout Bolt v3] handleSubmit initiated. FormData:", formData, "Cart state:", cartStore.getState());
+    console.log("[GuestCheckout Bolt v3] handleSubmit initiated. FormData:", formData, "Cart state:", cartStore);
 
-    const currentCartItems = cartStore.getState().items;
-    const currentCartTotal = cartStore.getState().total;
+    const currentCartItems = cartStore.items; // Corrected: Access directly
+    const currentCartTotal = cartStore.total; // Corrected: Access directly
     
     if (!currentCartItems || currentCartItems.length === 0 || currentCartTotal <= 0) {
       toast.error("No hay productos en tu pedido o el total es incorrecto. Por favor, revisa tu carrito.");
@@ -198,17 +198,17 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Use cartStore.getState() to get the latest items for rendering payment methods
+  // Use cartStore directly to get the latest items for rendering payment methods
   const availablePaymentMethods = {
-    cash_on_delivery: cartStore.getState().items.every(item => 
+    cash_on_delivery: cartStore.items.every(item => 
       item.product.allowed_payment_methods?.cash_on_delivery !== false
     ),
-    card: cartStore.getState().items.every(item => 
+    card: cartStore.items.every(item => 
       item.product.allowed_payment_methods?.card !== false
     )
   };
   
-  console.log("[GuestCheckout Bolt v3] Rendering. Cart items for display:", cartStore.getState().items, "Total:", cartStore.getState().total);
+  console.log("[GuestCheckout Bolt v3] Rendering. Cart items for display:", cartStore.items, "Total:", cartStore.total);
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -221,10 +221,10 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         </div>
         <div className="mt-8">
           <div className="bg-white p-6 shadow rounded-lg">
-            {cartStore.getState().items.length > 0 ? (
+            {cartStore.items.length > 0 ? (
               <div className="mb-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Resumen del pedido</h3>
-                {cartStore.getState().items.map((item, index) => (
+                {cartStore.items.map((item, index) => (
                   <div key={`${item.product.id}-${index}`} className="flex justify-between items-center py-2 border-b">
                     <div>
                       <p className="font-medium">{item.product.name}</p>
@@ -237,7 +237,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
                   </div>
                 ))}
                 <div className="mt-4 text-right">
-                  <p className="text-lg font-bold">Total: ${cartStore.getState().total.toFixed(2)}</p>
+                  <p className="text-lg font-bold">Total: ${cartStore.total.toFixed(2)}</p>
                 </div>
               </div>
             ) : (
@@ -388,7 +388,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
 
               <button
                 type="submit"
-                disabled={loading || !formData.paymentMethod || cartStore.getState().items.length === 0}
+                disabled={loading || !formData.paymentMethod || cartStore.items.length === 0}
                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
                 {loading ? "Procesando..." : (formData.paymentMethod === "mercadopago" ? "Pagar en línea" : "Realizar pedido (Pago contra entrega)")}
