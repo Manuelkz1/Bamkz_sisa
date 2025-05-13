@@ -1,8 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { CartItem, Product } from '../types';
-
-// Define la clave para localStorage
-const CART_STORAGE_KEY = 'cartState_v1_localStorage'; // Cambiado para evitar conflictos con sessionStorage anterior
 
 interface CartState {
   items: CartItem[];
@@ -18,110 +16,122 @@ interface CartStore extends CartState {
   toggleCart: () => void;
 }
 
-// Función para cargar el estado inicial desde localStorage
-const loadState = (): CartState => {
-  try {
-    const storedState = localStorage.getItem(CART_STORAGE_KEY);
-    if (storedState) {
-      const parsedState = JSON.parse(storedState);
-      if (Array.isArray(parsedState.items) && typeof parsedState.total === 'number') {
-        console.log('cartStore: Loaded state from localStorage:', parsedState);
-        return parsedState;
-      }
+// Create a custom storage object with logging
+const customStorage = {
+  getItem: (name: string): string | null => {
+    const value = localStorage.getItem(name);
+    console.log(`[CartStore] Reading from localStorage:`, { key: name, value });
+    return value;
+  },
+  setItem: (name: string, value: string): void => {
+    console.log(`[CartStore] Writing to localStorage:`, { key: name, value });
+    localStorage.setItem(name, value);
+  },
+  removeItem: (name: string): void => {
+    console.log(`[CartStore] Removing from localStorage:`, { key: name });
+    localStorage.removeItem(name);
+  },
+};
+
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      isOpen: false,
+      total: 0,
+
+      toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),
+
+      addItem: (product: Product, quantity = 1, selectedColor?: string) => {
+        console.log('[CartStore] Adding item:', { product, quantity, selectedColor });
+        set((state) => {
+          const items = [...state.items];
+          const existingItem = items.find(
+            (item) =>
+              item.product.id === product.id && item.selectedColor === selectedColor
+          );
+
+          if (existingItem) {
+            existingItem.quantity += quantity;
+          } else {
+            items.push({ product, quantity, selectedColor });
+          }
+
+          const total = items.reduce(
+            (sum, item) => sum + item.product.price * item.quantity,
+            0
+          );
+
+          return { items, total };
+        });
+      },
+
+      removeItem: (productId: string) => {
+        console.log('[CartStore] Removing item:', { productId });
+        set((state) => {
+          const items = state.items.filter((item) => item.product.id !== productId);
+          const total = items.reduce(
+            (sum, item) => sum + item.product.price * item.quantity,
+            0
+          );
+          return { items, total };
+        });
+      },
+
+      updateQuantity: (productId: string, quantity: number) => {
+        console.log('[CartStore] Updating quantity:', { productId, quantity });
+        set((state) => {
+          const items = state.items
+            .map((item) =>
+              item.product.id === productId
+                ? { ...item, quantity: Math.max(0, quantity) }
+                : item
+            )
+            .filter((item) => item.quantity > 0);
+
+          const total = items.reduce(
+            (sum, item) => sum + item.product.price * item.quantity,
+            0
+          );
+          return { items, total };
+        });
+      },
+
+      clearCart: () => {
+        console.log('[CartStore] Clearing cart');
+        set({ items: [], total: 0, isOpen: false });
+      },
+    }),
+    {
+      name: 'cart-storage-v3',
+      storage: createJSONStorage(() => customStorage),
+      partialize: (state) => ({
+        items: state.items,
+        total: state.total,
+      }),
+      onRehydrateStorage: () => (state) => {
+        console.log('[CartStore] Rehydration complete:', state);
+      },
     }
-  } catch (error) {
-    console.error('cartStore: Error loading state from localStorage:', error);
-    localStorage.removeItem(CART_STORAGE_KEY);
+  )
+);
+
+// Export a function to manually rehydrate the cart if needed
+export const rehydrateCart = () => {
+  const stored = localStorage.getItem('cart-storage-v3');
+  if (stored) {
+    try {
+      const data = JSON.parse(stored);
+      if (data.state && Array.isArray(data.state.items)) {
+        useCartStore.setState({
+          items: data.state.items,
+          total: data.state.total,
+          isOpen: false,
+        });
+        console.log('[CartStore] Manual rehydration successful:', data.state);
+      }
+    } catch (error) {
+      console.error('[CartStore] Manual rehydration failed:', error);
+    }
   }
-  console.log('cartStore: No valid state in localStorage, initializing with default.');
-  return { items: [], isOpen: false, total: 0 };
 };
-
-// Función para guardar el estado en localStorage
-const saveState = (state: CartState) => {
-  try {
-    const stateToSave = { items: state.items, total: state.total, isOpen: state.isOpen };
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(stateToSave));
-    console.log('cartStore: Saved state to localStorage:', stateToSave);
-  } catch (error) {
-    console.error('cartStore: Error saving state to localStorage:', error);
-  }
-};
-
-export const useCartStore = create<CartStore>((set, get) => {
-  const initialState = loadState();
-
-  return {
-    ...initialState,
-
-    toggleCart: () => {
-      set((state) => {
-        const newState = { ...state, isOpen: !state.isOpen };
-        saveState(newState); // Guardar estado también al cambiar visibilidad del carrito
-        return { isOpen: !state.isOpen };
-      });
-    },
-
-    addItem: (product: Product, quantity = 1, selectedColor?: string) => {
-      set((state) => {
-        const items = [...state.items];
-        const existingItem = items.find(item => 
-          item.product.id === product.id && 
-          item.selectedColor === selectedColor
-        );
-
-        if (existingItem) {
-          existingItem.quantity += quantity;
-        } else {
-          items.push({ product, quantity, selectedColor });
-        }
-
-        const total = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-        const newState = { ...state, items, total };
-        saveState(newState);
-        return newState;
-      });
-    },
-
-    removeItem: (productId: string) => {
-      set((state) => {
-        const items = state.items.filter(item => item.product.id !== productId);
-        const total = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-        const newState = { ...state, items, total };
-        saveState(newState);
-        return newState;
-      });
-    },
-
-    updateQuantity: (productId: string, quantity: number) => {
-      set((state) => {
-        const items = state.items.map(item => 
-          item.product.id === productId 
-            ? { ...item, quantity: Math.max(0, quantity) } // Evitar cantidades negativas
-            : item
-        ).filter(item => item.quantity > 0); // Eliminar items con cantidad 0
-
-        const total = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-        const newState = { ...state, items, total };
-        saveState(newState);
-        return newState;
-      });
-    },
-
-    clearCart: () => {
-      console.log('cartStore: clearCart CALLED! Clearing localStorage.');
-      set((state) => {
-        const newState = { ...state, items: [], total: 0 };
-        saveState(newState); // Guardar el estado vacío
-        // localStorage.removeItem(CART_STORAGE_KEY); // Alternativamente, se puede remover la clave directamente
-        return { items: [], total: 0 }; 
-      });
-    },
-  };
-});
-
-// Opcional: Si necesitas una forma de recargar el estado manualmente desde fuera del store
-// export const hydrateCartStore = () => {
-//   useCartStore.setState(loadState());
-// };
-
