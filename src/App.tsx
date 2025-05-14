@@ -10,6 +10,7 @@ import { PaymentStatus } from './components/PaymentStatus';
 import { useAuthStore } from './stores/authStore';
 import { useCartStore } from './stores/cartStore';
 import { Home } from './components/Home';
+import WhatsAppButton from './components/WhatsAppButton'; // Import WhatsAppButton
 
 export default function App() {
   const { user, loading, error, checkAuth } = useAuthStore();
@@ -88,6 +89,8 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <WhatsAppButton /> {/* Add WhatsAppButton here for global visibility */}
     </Router>
   );
 }
+

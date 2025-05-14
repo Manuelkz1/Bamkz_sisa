@@ -1,23 +1,96 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase'; // Import supabase client
+import { useCartStore } from '../stores/cartStore'; // Import cart store for clearing cart
 
 export function PaymentStatus() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const status = searchParams.get('status');
+  const orderId = searchParams.get('order_id'); // Get order_id for fetching details
+  const clearCart = useCartStore((state) => state.clearCart);
 
   useEffect(() => {
-    if (status === 'approved') {
-      // Redirect to home after 5 seconds on successful payment
-      const timer = setTimeout(() => {
-        navigate('/');
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [status, navigate]);
+    const handleSuccessfulPayment = async () => {
+      if (status === 'approved' && orderId) {
+        console.log('[PaymentStatus] Payment approved for orderId:', orderId);
+        try {
+          // 1. Fetch order details to get all necessary info for the email
+          const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .select(`
+              id,
+              guest_info,
+              shipping_address,
+              payment_method,
+              total,
+              order_items (
+                quantity,
+                price_at_time,
+                selected_color,
+                products (name, price)
+              )
+            `)
+            .eq('id', orderId)
+            .single();
 
-  // Define a type for status content to ensure consistency
+          if (orderError || !orderData) {
+            console.error('[PaymentStatus] Error fetching order details for notification:', orderError?.message);
+            // Proceed without notification if order details can't be fetched, but log error
+          } else {
+            console.log('[PaymentStatus] Order details fetched:', orderData);
+            const notificationPayload = {
+              fullName: orderData.shipping_address?.full_name || orderData.guest_info?.full_name || 'N/A',
+              email: orderData.guest_info?.email || 'N/A',
+              phone: orderData.shipping_address?.phone || orderData.guest_info?.phone || 'N/A',
+              address: orderData.shipping_address?.address || 'N/A',
+              city: orderData.shipping_address?.city || 'N/A',
+              postalCode: orderData.shipping_address?.postal_code || 'N/A',
+              country: orderData.shipping_address?.country || 'N/A',
+              orderId: orderData.id,
+              paymentMethod: orderData.payment_method,
+              totalAmount: Number(orderData.total).toFixed(2),
+              items: orderData.order_items.map((item: any) => ({
+                product: { name: item.products.name, price: Number(item.products.price) },
+                quantity: item.quantity,
+                selectedColor: item.selected_color || 'N/A',
+              })),
+            };
+            
+            console.log('[PaymentStatus] Attempting to send notification email for approved order:', notificationPayload);
+            const { error: emailError } = await supabase.functions.invoke("send-order-notification", {
+              body: { orderData: notificationPayload },
+            });
+
+            if (emailError) {
+              console.error('[PaymentStatus] Error sending approved order notification email:', emailError.message);
+              // Log error, but don't block user flow
+            } else {
+              console.log('[PaymentStatus] Approved order notification email function invoked.');
+            }
+          }
+          
+          // Clear cart and form data (form data should be cleared by GuestCheckout on success path or here if needed)
+          clearCart();
+          sessionStorage.removeItem("checkout-form-bolt-v3"); // Clear form data on successful payment
+          console.log('[PaymentStatus] Cart and form data cleared for successful payment.');
+
+        } catch (e: any) {
+          console.error('[PaymentStatus] Exception during successful payment handling:', e.message);
+        }
+
+        // Redirect to home after 5 seconds on successful payment
+        const timer = setTimeout(() => {
+          navigate('/');
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    };
+
+    handleSuccessfulPayment();
+  }, [status, orderId, navigate, clearCart]);
+
   interface StatusContentType {
     icon: JSX.Element;
     title: string;
@@ -36,10 +109,10 @@ export function PaymentStatus() {
         return {
           icon: <CheckCircle className="h-16 w-16 text-green-500" />,
           title: '¡Pago exitoso!',
-          message: 'Tu pago ha sido procesado correctamente. Serás redirigido al inicio en 5 segundos.',
+          message: 'Tu pago ha sido procesado correctamente. Hemos enviado una notificación a tu correo y serás redirigido al inicio en 5 segundos.',
           actions: [
             {
-              text: 'Volver al inicio',
+              text: 'Volver al inicio ahora',
               action: () => navigate('/'),
               style: 'bg-green-600 hover:bg-green-700 text-white',
               isPrimary: true,
@@ -66,11 +139,14 @@ export function PaymentStatus() {
             },
           ],
         };
+      case 'pending_cod': // Status for Cash on Delivery from GuestCheckout
       case 'pending':
         return {
           icon: <Clock className="h-16 w-16 text-yellow-500" />,
           title: 'Pago pendiente',
-          message: 'Tu pago está siendo procesado. Te notificaremos cuando se confirme.',
+          message: status === 'pending_cod' 
+            ? 'Tu pedido contra entrega ha sido recibido y está siendo procesado. Te hemos enviado una notificación por correo.' 
+            : 'Tu pago está siendo procesado. Te notificaremos cuando se confirme.',
           actions: [
             {
               text: 'Volver al inicio',
@@ -84,7 +160,7 @@ export function PaymentStatus() {
         return {
           icon: <XCircle className="h-16 w-16 text-gray-500" />,
           title: 'Estado desconocido',
-          message: 'No pudimos determinar el estado de tu pago.',
+          message: 'No pudimos determinar el estado de tu pago. Contacta a soporte si el problema persiste.',
           actions: [
             {
               text: 'Volver al inicio',
