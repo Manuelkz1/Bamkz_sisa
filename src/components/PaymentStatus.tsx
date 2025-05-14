@@ -17,43 +17,82 @@ export function PaymentStatus() {
     }
   }, [status, navigate]);
 
-  const getStatusContent = () => {
+  // Define a type for status content to ensure consistency
+  interface StatusContentType {
+    icon: JSX.Element;
+    title: string;
+    message: string;
+    actions: Array<{
+      text: string;
+      action: () => void;
+      style: string;
+      isPrimary: boolean;
+    }>;
+  }
+
+  const getStatusContent = (): StatusContentType => {
     switch (status) {
       case 'approved':
         return {
           icon: <CheckCircle className="h-16 w-16 text-green-500" />,
           title: '¡Pago exitoso!',
           message: 'Tu pago ha sido procesado correctamente. Serás redirigido al inicio en 5 segundos.',
-          buttonText: 'Volver al inicio',
-          buttonAction: () => navigate('/'),
-          buttonStyle: 'bg-green-600 hover:bg-green-700'
+          actions: [
+            {
+              text: 'Volver al inicio',
+              action: () => navigate('/'),
+              style: 'bg-green-600 hover:bg-green-700 text-white',
+              isPrimary: true,
+            },
+          ],
         };
       case 'rejected':
         return {
           icon: <XCircle className="h-16 w-16 text-red-500" />,
           title: 'Pago rechazado',
           message: 'Lo sentimos, tu pago no pudo ser procesado. Por favor intenta de nuevo.',
-          buttonText: 'Volver al carrito',
-          buttonAction: () => navigate('/checkout'),
-          buttonStyle: 'bg-red-600 hover:bg-red-700'
+          actions: [
+            {
+              text: 'Elegir otro medio de pago',
+              action: () => navigate('/checkout'),
+              style: 'bg-red-600 hover:bg-red-700 text-white',
+              isPrimary: true,
+            },
+            {
+              text: 'Volver al inicio',
+              action: () => navigate('/'),
+              style: 'bg-gray-200 hover:bg-gray-300 text-gray-700',
+              isPrimary: false,
+            },
+          ],
         };
       case 'pending':
         return {
           icon: <Clock className="h-16 w-16 text-yellow-500" />,
           title: 'Pago pendiente',
           message: 'Tu pago está siendo procesado. Te notificaremos cuando se confirme.',
-          buttonText: 'Volver al inicio',
-          buttonAction: () => navigate('/'),
-          buttonStyle: 'bg-yellow-600 hover:bg-yellow-700'
+          actions: [
+            {
+              text: 'Volver al inicio',
+              action: () => navigate('/'),
+              style: 'bg-yellow-600 hover:bg-yellow-700 text-white',
+              isPrimary: true,
+            },
+          ],
         };
       default:
         return {
           icon: <XCircle className="h-16 w-16 text-gray-500" />,
           title: 'Estado desconocido',
           message: 'No pudimos determinar el estado de tu pago.',
-          buttonText: 'Volver al inicio',
-          buttonAction: () => navigate('/'),
-          buttonStyle: 'bg-gray-600 hover:bg-gray-700'
+          actions: [
+            {
+              text: 'Volver al inicio',
+              action: () => navigate('/'),
+              style: 'bg-gray-600 hover:bg-gray-700 text-white',
+              isPrimary: true,
+            },
+          ],
         };
     }
   };
@@ -85,14 +124,20 @@ export function PaymentStatus() {
             {statusContent.message}
           </p>
 
-          <button
-            onClick={statusContent.buttonAction}
-            className={`w-full py-3 px-4 rounded-md text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${statusContent.buttonStyle}`}
-          >
-            {statusContent.buttonText}
-          </button>
+          <div className="space-y-4">
+            {statusContent.actions.map((buttonInfo, index) => (
+              <button
+                key={index}
+                onClick={buttonInfo.action}
+                className={`w-full py-3 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${buttonInfo.style} ${buttonInfo.isPrimary ? '' : 'border border-gray-300'}`}
+              >
+                {buttonInfo.text}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
