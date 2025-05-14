@@ -8,24 +8,23 @@ import { useCartStore } from "../stores/cartStore"; // Corrected import path
 // Define GuestCheckoutProps interface if not already defined elsewhere
 interface GuestCheckoutProps {
   onBack: () => void;
-  onSuccess: () => void; // This function should handle clearing the cart via cartStore.clearCart()
+  onSuccess: () => void; // This function should handle clearing the cart AND form data via cartStore.clearCart() and sessionStorage.removeItem("checkout-form-bolt-v3")
 }
 
 export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  // Get the entire cart store instance. Items and total will be accessed via cartStore.items, cartStore.total
   const cartStore = useCartStore();
   
   const [formData, setFormData] = useState(() => {
-    console.log("[GuestCheckout Bolt v3] Initializing formData from sessionStorage.");
+    console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Initializing formData from sessionStorage.");
     try {
-      const saved = sessionStorage.getItem("checkout-form-bolt-v3"); // New key for form data
+      const saved = sessionStorage.getItem("checkout-form-bolt-v3");
       if (saved) {
-        console.log("[GuestCheckout Bolt v3] Found saved formData:", saved);
+        console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Found saved formData:", saved);
         return JSON.parse(saved);
       }
-      console.log("[GuestCheckout Bolt v3] No saved formData found, using defaults.");
+      console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] No saved formData found, using defaults.");
       return {
         fullName: "",
         email: "",
@@ -37,7 +36,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         paymentMethod: ""
       };
     } catch (error) {
-      console.error("[GuestCheckout Bolt v3] Error parsing formData from sessionStorage:", error);
+      console.error("[GuestCheckout Bolt v3 - FormData Persist Fix] Error parsing formData from sessionStorage:", error);
       return {
         fullName: "",
         email: "",
@@ -51,43 +50,38 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     }
   });
 
-  // Save form data to sessionStorage when it changes
   useEffect(() => {
-    console.log("[GuestCheckout Bolt v3] formData changed, saving to sessionStorage:", formData);
+    console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] formData changed, saving to sessionStorage:", formData);
     sessionStorage.setItem("checkout-form-bolt-v3", JSON.stringify(formData));
   }, [formData]);
 
-  // Effect to attempt rehydration if cart is empty on mount or navigation
   useEffect(() => {
-    console.log("[GuestCheckout Bolt v3] Component did mount/update. Checking cart state.");
-    const { items, total, rehydrate } = cartStore; // Destructure for easier access
-    console.log("[GuestCheckout Bolt v3] Current cart state from store:", { items, total });
-    
-    // Attempt to rehydrate if the cart appears empty. 
-    // This is a safety net; persist middleware should handle most cases.
+    console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Component did mount/update. Checking cart state.");
+    const { items, total, rehydrate } = cartStore;
+    console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Current cart state from store:", { items, total });
     if ((!items || items.length === 0) && total === 0) {
-      console.log("[GuestCheckout Bolt v3] Cart is empty, attempting manual rehydrate.");
+      console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Cart is empty, attempting manual rehydrate.");
       rehydrate(); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run on mount. Consider adding dependencies if cartStore instance itself can change, though unlikely with Zustand.
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[GuestCheckout Bolt v3] handleSubmit initiated. FormData:", formData, "Cart state:", cartStore);
+    console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] handleSubmit initiated. FormData:", formData, "Cart state:", cartStore);
 
-    const currentCartItems = cartStore.items; // Corrected: Access directly
-    const currentCartTotal = cartStore.total; // Corrected: Access directly
+    const currentCartItems = cartStore.items;
+    const currentCartTotal = cartStore.total;
     
     if (!currentCartItems || currentCartItems.length === 0 || currentCartTotal <= 0) {
       toast.error("No hay productos en tu pedido o el total es incorrecto. Por favor, revisa tu carrito.");
-      console.error("[GuestCheckout Bolt v3] Validation failed: Cart is empty or total is invalid.");
+      console.error("[GuestCheckout Bolt v3 - FormData Persist Fix] Validation failed: Cart is empty or total is invalid.");
       return;
     }
 
     if (!formData.paymentMethod) {
       toast.error("Por favor selecciona un método de pago");
-      console.error("[GuestCheckout Bolt v3] Validation failed: No payment method selected.");
+      console.error("[GuestCheckout Bolt v3 - FormData Persist Fix] Validation failed: No payment method selected.");
       return;
     }
 
@@ -121,7 +115,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
 
       if (orderError) throw new Error("Error al crear el pedido: " + orderError.message);
       if (!order) throw new Error("No se pudo crear el pedido");
-      console.log("[GuestCheckout Bolt v3] Order created in Supabase:", order);
+      console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Order created in Supabase:", order);
 
       const orderItemsData = currentCartItems.map(item => ({
         order_id: order.id,
@@ -136,10 +130,10 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         .insert(orderItemsData);
 
       if (itemsError) {
-        await supabase.from("orders").delete().eq("id", order.id); // Rollback order creation
+        await supabase.from("orders").delete().eq("id", order.id);
         throw new Error("Error al crear los items del pedido: " + itemsError.message);
       }
-      console.log("[GuestCheckout Bolt v3] Order items created in Supabase.");
+      console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Order items created in Supabase.");
 
       if (formData.paymentMethod === "mercadopago") {
         toast.loading("Redirigiendo a Mercado Pago...");
@@ -150,7 +144,6 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
             product_id: item.product.id,
             product_name: item.product.name,
             product_description: item.product.description || item.product.name,
-            // Ensure product.images is an array and access safely
             product_image_url: (item.product.images && item.product.images.length > 0) ? item.product.images[0] : (item.product.image_url || ""),
             product_category: item.product.category || "others",
             product_price: Number(item.product.price),
@@ -158,7 +151,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
           })),
           total: currentCartTotal,
         };
-        console.log("[GuestCheckout Bolt v3] Sending paymentPayload to Supabase function create-payment:", paymentPayload);
+        console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Sending paymentPayload to Supabase function create-payment:", paymentPayload);
 
         const { data: paymentData, error: paymentError } = await supabase.functions
           .invoke("create-payment", { body: paymentPayload });
@@ -170,24 +163,23 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
             .from("orders")
             .update({ payment_status: "failed", status: "payment_creation_failed" })
             .eq("id", order.id);
-          console.error("[GuestCheckout Bolt v3] Error creating MercadoPago preference:", paymentData?.error || paymentError?.message);
+          console.error("[GuestCheckout Bolt v3 - FormData Persist Fix] Error creating MercadoPago preference:", paymentData?.error || paymentError?.message);
           throw new Error(paymentData?.error || paymentError?.message || "Error al generar el enlace de pago");
         }
 
-        console.log("[GuestCheckout Bolt v3] MercadoPago preference OK. Clearing ONLY form data from session & redirecting.");
-        sessionStorage.removeItem("checkout-form-bolt-v3"); // Clear only form data
-        // onSuccess() will be called by the payment success/failure page, which should then call cartStore.clearCart()
-        // For now, we assume onSuccess is handled elsewhere or after payment confirmation.
+        console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] MercadoPago preference OK. Form data will persist in session. Redirecting.");
+        // DO NOT clear form data from session here. It should persist if user comes back.
+        // sessionStorage.removeItem("checkout-form-bolt-v3"); // Removed this line
         window.location.href = paymentData.init_point;
       } else { // Cash on delivery
-        console.log("[GuestCheckout Bolt v3] Cash on delivery order placed. Clearing form data. Cart will be cleared by onSuccess.");
-        sessionStorage.removeItem("checkout-form-bolt-v3");
-        onSuccess(); // This should trigger cartStore.clearCart() in the parent component or App.tsx
+        console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Cash on delivery order placed. Clearing form data. Cart will be cleared by onSuccess.");
+        sessionStorage.removeItem("checkout-form-bolt-v3"); // OK to clear here for CoD as it's a success path for this component's responsibility
+        onSuccess(); // This should trigger cartStore.clearCart() and potentially form data clearance if defined there
         toast.success("¡Pedido realizado con éxito! Pago contra entrega");
         navigate("/pago", { state: { status: "pending", orderId: order.id }});
       }
     } catch (error: any) {
-      console.error("[GuestCheckout Bolt v3] Error in handleSubmit:", error);
+      console.error("[GuestCheckout Bolt v3 - FormData Persist Fix] Error in handleSubmit:", error);
       toast.error(error.message || "Error al procesar el pedido.");
       setLoading(false);
     }
@@ -198,7 +190,6 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Use cartStore directly to get the latest items for rendering payment methods
   const availablePaymentMethods = {
     cash_on_delivery: cartStore.items.every(item => 
       item.product.allowed_payment_methods?.cash_on_delivery !== false
@@ -208,7 +199,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     )
   };
   
-  console.log("[GuestCheckout Bolt v3] Rendering. Cart items for display:", cartStore.items, "Total:", cartStore.total);
+  console.log("[GuestCheckout Bolt v3 - FormData Persist Fix] Rendering. Cart items for display:", cartStore.items, "Total:", cartStore.total);
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -400,6 +391,4 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     </div>
   );
 }
-
-// Removed duplicate export default GuestCheckout; as it's already exported with export function GuestCheckout
 
