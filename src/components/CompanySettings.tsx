@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { Upload, X, Save, Image as ImageIcon, Lock, Unlock } from 'lucide-react';
+import { Upload, X, Save, Image as ImageIcon, Lock, Unlock, TruckIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface CompanySettings {
@@ -12,6 +12,7 @@ interface CompanySettings {
   logo_width: number;
   logo_height: number;
   maintain_ratio: boolean;
+  dropshipping_shipping_cost: number;
   updated_at: string;
 }
 
@@ -27,6 +28,7 @@ export function CompanySettings() {
   const [logoHeight, setLogoHeight] = useState(60);
   const [maintainRatio, setMaintainRatio] = useState(true);
   const [aspectRatio, setAspectRatio] = useState(200 / 60);
+  const [dropshippingShippingCost, setDropshippingShippingCost] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoRef = useRef<HTMLImageElement>(null);
 
@@ -52,6 +54,7 @@ export function CompanySettings() {
       setLogoWidth(data.logo_width);
       setLogoHeight(data.logo_height);
       setMaintainRatio(data.maintain_ratio);
+      setDropshippingShippingCost(data.dropshipping_shipping_cost || 0);
       
       if (data.logo_url && data.maintain_ratio) {
         // Load image to get natural dimensions
@@ -165,6 +168,12 @@ export function CompanySettings() {
         return;
       }
 
+      // Validate dropshipping shipping cost
+      if (dropshippingShippingCost < 0) {
+        toast.error('El costo de envío para dropshipping no puede ser negativo');
+        return;
+      }
+
       // Handle logo upload if a new file is selected
       let logoUrl = settings.logo_url;
       if (fileInputRef.current?.files?.length) {
@@ -195,6 +204,7 @@ export function CompanySettings() {
           logo_width: logoWidth,
           logo_height: logoHeight,
           maintain_ratio: maintainRatio,
+          dropshipping_shipping_cost: dropshippingShippingCost,
           updated_at: new Date().toISOString()
         })
         .eq('id', settings.id);
@@ -313,6 +323,36 @@ export function CompanySettings() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
               placeholder="Subtítulo del hero"
             />
+          </div>
+        </div>
+
+        {/* Dropshipping Settings */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <TruckIcon className="h-5 w-5 mr-2" />
+            Configuración de Dropshipping
+          </h3>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Costo de Envío para Usuarios Dropshipping
+            </label>
+            <div className="flex items-center">
+              <span className="text-gray-500 mr-2">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={dropshippingShippingCost}
+                onChange={(e) => setDropshippingShippingCost(parseFloat(e.target.value) || 0)}
+                className="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="0.00"
+              />
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              Este costo se aplicará a los pedidos realizados por usuarios con rol de dropshipping. 
+              Si se establece en 0, el envío será gratuito para estos usuarios.
+            </p>
           </div>
         </div>
 

@@ -19,7 +19,10 @@ import {
   TruckIcon,
   CheckCircle,
   CreditCard,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Eye,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { CompanySettings } from './CompanySettings';
 import type { Product, Order, User } from '../types';
@@ -51,6 +54,9 @@ export function AdminPanel() {
   const [error, setError] = useState<string | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [showOrderDetailModal, setShowOrderDetailModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
@@ -277,6 +283,42 @@ export function AdminPanel() {
     }
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este pedido? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      // Primero eliminamos los items del pedido
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (itemsError) throw itemsError;
+
+      // Luego eliminamos el pedido
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      toast.success('Pedido eliminado exitosamente');
+      loadOrders();
+      
+      // Si el pedido eliminado es el que estaba seleccionado, cerramos el modal
+      if (selectedOrder?.id === orderId) {
+        setShowOrderDetailModal(false);
+        setSelectedOrder(null);
+      }
+    } catch (error: any) {
+      console.error('Error deleting order:', error);
+      toast.error('Error al eliminar el pedido');
+    }
+  };
+
   const handleImageUrlAdd = () => {
     setProductForm(prev => ({
       ...prev,
@@ -374,6 +416,19 @@ export function AdminPanel() {
       if (error.message.includes('Authentication failed') || error.message.includes('No hay sesión activa')) {
         navigate('/login');
       }
+    }
+  };
+
+  const handleViewOrderDetails = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderDetailModal(true);
+  };
+
+  const toggleOrderExpand = (orderId: string) => {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+    } else {
+      setExpandedOrderId(orderId);
     }
   };
 
@@ -605,64 +660,181 @@ export function AdminPanel() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {orders.map((order) => (
-                        <tr key={order.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {order.id.slice(0, 8)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {order.is_guest
-                                ? order.guest_info?.full_name + ' (Invitado)'
-                                : order.shipping_address.full_name}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {order.is_guest
-                                ? order.guest_info?.email
-                                : order.shipping_address.phone}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm text-gray-900">
-                              {order.order_items?.map((item) => (
-                                <div key={item.id} className="mb-1">
-                                  {item.products.name} x{item.quantity}
-                                  {item.selected_color && ` (${item.selected_color})`}
+                        <React.Fragment key={order.id}>
+                          <tr 
+                            className={`${expandedOrderId === order.id ? 'bg-gray-50' : ''} cursor-pointer hover:bg-gray-50`}
+                            onClick={() => toggleOrderExpand(order.id)}
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {order.id.slice(0, 8)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                {order.is_guest
+                                  ? order.guest_info?.full_name + ' (Invitado)'
+                                  : order.shipping_address.full_name}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {order.is_guest
+                                  ? order.guest_info?.email
+                                  : order.shipping_address.phone}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">
+                                {order.order_items?.map((item) => (
+                                  <div key={item.id} className="mb-1">
+                                    {item.products.name} x{item.quantity}
+                                    {item.selected_color && ` (${item.selected_color})`}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">
+                                ${order.total}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[order.status].color}`}>
+                                {ORDER_STATUS_MAP[order.status].label}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[order.payment_status].color}`}>
+                                {PAYMENT_STATUS_MAP[order.payment_status].label}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex items-center space-x-2">
+                                <select
+                                  value={order.status}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleUpdateOrderStatus(order.id, e.target.value as Order['status']);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                >
+                                  <option value="pending">Pendiente</option>
+                                  <option value="processing">Procesando</option>
+                                  <option value="shipped">Enviado</option>
+                                  <option value="delivered">Entregado</option>
+                                  <option value="cancelled">Cancelado</option>
+                                </select>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewOrderDetails(order);
+                                  }}
+                                  className="text-indigo-600 hover:text-indigo-900 p-1"
+                                  title="Ver detalles"
+                                >
+                                  <Eye className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteOrder(order.id);
+                                  }}
+                                  className="text-red-600 hover:text-red-900 p-1"
+                                  title="Eliminar pedido"
+                                >
+                                  <Trash2 className="h-5 w-5" />
+                                </button>
+                                {expandedOrderId === order.id ? (
+                                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                                ) : (
+                                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {expandedOrderId === order.id && (
+                            <tr>
+                              <td colSpan={8} className="px-6 py-4 bg-gray-50">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Información del Cliente</h3>
+                                    <div className="bg-white p-4 rounded-md shadow-sm">
+                                      {order.is_guest ? (
+                                        <>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {order.guest_info?.full_name} (Invitado)</p>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {order.guest_info?.email}</p>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {order.guest_info?.phone}</p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {order.shipping_address.full_name}</p>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {order.user_email}</p>
+                                          <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {order.shipping_address.phone}</p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Dirección de Envío</h3>
+                                    <div className="bg-white p-4 rounded-md shadow-sm">
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Dirección:</span> {order.shipping_address.address}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Ciudad:</span> {order.shipping_address.city}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado/Provincia:</span> {order.shipping_address.state}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Código Postal:</span> {order.shipping_address.postal_code}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">País:</span> {order.shipping_address.country}</p>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Detalles del Pedido</h3>
+                                    <div className="bg-white p-4 rounded-md shadow-sm">
+                                      <p className="text-sm text-gray-700"><span className="font-medium">ID del Pedido:</span> {order.id}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Fecha:</span> {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Método de Pago:</span> {order.payment_method === 'cash_on_delivery' ? 'Contra entrega' : 'Tarjeta'}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado del Pago:</span> {PAYMENT_STATUS_MAP[order.payment_status].label}</p>
+                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado del Pedido:</span> {ORDER_STATUS_MAP[order.status].label}</p>
+                                      {order.payment_id && (
+                                        <p className="text-sm text-gray-700"><span className="font-medium">ID de Pago:</span> {order.payment_id}</p>
+                                      )}
+                                      {order.notes && (
+                                        <p className="text-sm text-gray-700"><span className="font-medium">Notas:</span> {order.notes}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Productos</h3>
+                                    <div className="bg-white p-4 rounded-md shadow-sm">
+                                      <div className="space-y-2">
+                                        {order.order_items?.map((item) => (
+                                          <div key={item.id} className="flex justify-between">
+                                            <span className="text-sm text-gray-700">
+                                              {item.products.name} x{item.quantity}
+                                              {item.selected_color && ` (${item.selected_color})`}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="mt-4 pt-4 border-t border-gray-200">
+                                        <div className="flex justify-between">
+                                          <span className="text-sm font-medium text-gray-700">Subtotal:</span>
+                                          <span className="text-sm text-gray-700">${order.subtotal}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-sm font-medium text-gray-700">Envío:</span>
+                                          <span className="text-sm text-gray-700">${order.shipping_cost}</span>
+                                        </div>
+                                        <div className="flex justify-between font-medium">
+                                          <span className="text-sm text-gray-900">Total:</span>
+                                          <span className="text-sm text-gray-900">${order.total}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              ${order.total}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[order.status].color}`}>
-                              {ORDER_STATUS_MAP[order.status].label}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[order.payment_status].color}`}>
-                              {PAYMENT_STATUS_MAP[order.payment_status].label}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <select
-                              value={order.status}
-                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as Order['status'])}
-                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                            >
-                              <option value="pending">Pendiente</option>
-                              <option value="processing">Procesando</option>
-                              <option value="shipped">Enviado</option>
-                              <option value="delivered">Entregado</option>
-                              <option value="cancelled">Cancelado</option>
-                            </select>
-                          </td>
-                        </tr>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -758,6 +930,149 @@ export function AdminPanel() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Detalle de Pedido */}
+      {showOrderDetailModal && selectedOrder && (
+        <div className="fixed z-10 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              onClick={() => setShowOrderDetailModal(false)}
+            ></div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Detalles del Pedido #{selectedOrder.id.slice(0, 8)}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowOrderDetailModal(false)}
+                    className="text-gray-400 hover:text-gray-500"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Información del Cliente</h4>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                      {selectedOrder.is_guest ? (
+                        <>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Nombre:</span> {selectedOrder.guest_info?.full_name} (Invitado)</p>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Email:</span> {selectedOrder.guest_info?.email}</p>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Teléfono:</span> {selectedOrder.guest_info?.phone}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Nombre:</span> {selectedOrder.shipping_address.full_name}</p>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Email:</span> {selectedOrder.user_email}</p>
+                          <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Teléfono:</span> {selectedOrder.shipping_address.phone}</p>
+                        </>
+                      )}
+                    </div>
+
+                    <h4 className="text-sm font-medium text-gray-900 mt-4 mb-2">Dirección de Envío</h4>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Dirección:</span> {selectedOrder.shipping_address.address}</p>
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Ciudad:</span> {selectedOrder.shipping_address.city}</p>
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Estado/Provincia:</span> {selectedOrder.shipping_address.state}</p>
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Código Postal:</span> {selectedOrder.shipping_address.postal_code}</p>
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">País:</span> {selectedOrder.shipping_address.country}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Detalles del Pedido</h4>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">ID del Pedido:</span> {selectedOrder.id}</p>
+                      <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Fecha:</span> {format(new Date(selectedOrder.created_at), 'dd/MM/yyyy HH:mm')}</p>
+                      <p className="text-sm text-gray-700 mb-2">
+                        <span className="font-medium">Método de Pago:</span> {selectedOrder.payment_method === 'cash_on_delivery' ? 'Contra entrega' : 'Tarjeta'}
+                      </p>
+                      <p className="text-sm text-gray-700 mb-2">
+                        <span className="font-medium">Estado del Pago:</span> 
+                        <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[selectedOrder.payment_status].color}`}>
+                          {PAYMENT_STATUS_MAP[selectedOrder.payment_status].label}
+                        </span>
+                      </p>
+                      <p className="text-sm text-gray-700 mb-2">
+                        <span className="font-medium">Estado del Pedido:</span>
+                        <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[selectedOrder.status].color}`}>
+                          {ORDER_STATUS_MAP[selectedOrder.status].label}
+                        </span>
+                      </p>
+                      {selectedOrder.payment_id && (
+                        <p className="text-sm text-gray-700 mb-2"><span className="font-medium">ID de Pago:</span> {selectedOrder.payment_id}</p>
+                      )}
+                      {selectedOrder.notes && (
+                        <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Notas:</span> {selectedOrder.notes}</p>
+                      )}
+                    </div>
+
+                    <h4 className="text-sm font-medium text-gray-900 mt-4 mb-2">Productos</h4>
+                    <div className="bg-gray-50 p-4 rounded-md">
+                      <div className="space-y-2 mb-4">
+                        {selectedOrder.order_items?.map((item) => (
+                          <div key={item.id} className="flex justify-between">
+                            <span className="text-sm text-gray-700">
+                              {item.products.name} x{item.quantity}
+                              {item.selected_color && ` (${item.selected_color})`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-700">Subtotal:</span>
+                          <span className="text-sm text-gray-700">${selectedOrder.subtotal}</span>
+                        </div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-700">Envío:</span>
+                          <span className="text-sm text-gray-700">${selectedOrder.shipping_cost}</span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span className="text-sm text-gray-900">Total:</span>
+                          <span className="text-sm text-gray-900">${selectedOrder.total}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => setShowOrderDetailModal(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteOrder(selectedOrder.id)}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Eliminar Pedido
+                </button>
+                <select
+                  value={selectedOrder.status}
+                  onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value as Order['status'])}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  <option value="pending">Pendiente</option>
+                  <option value="processing">Procesando</option>
+                  <option value="shipped">Enviado</option>
+                  <option value="delivered">Entregado</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showProductModal && (
         <div className="fixed z-10 inset-0 overflow-y-auto">
@@ -967,8 +1282,10 @@ export function AdminPanel() {
                             }
                             className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                           />
-                          <label htmlFor="cash_on_delivery" className="ml-2 flex items-center text-sm text-gray-900">
-                            <TruckIcon className="h-4 w-4 mr-1" />
+                          <label
+                            htmlFor="cash_on_delivery"
+                            className="ml-2 block text-sm text-gray-700"
+                          >
                             Pago contra entrega
                           </label>
                         </div>
@@ -982,27 +1299,25 @@ export function AdminPanel() {
                                 ...prev,
                                 allowed_payment_methods: {
                                   ...prev.allowed_payment_methods,
-                                  card: e.target.checked,
-                                  payment_url: e.target.checked ? prev.allowed_payment_methods.payment_url : ''
+                                  card: e.target.checked
                                 }
                               }))
                             }
                             className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                           />
-                          <label htmlFor="card" className="ml-2 flex items-center text-sm text-gray-900">
-                            <CreditCard className="h-4 w-4 mr-1" />
-                            Pago con tarjeta
+                          <label
+                            htmlFor="card"
+                            className="ml-2 block text-sm text-gray-700"
+                          >
+                            Tarjeta de crédito/débito
                           </label>
                         </div>
                         {productForm.allowed_payment_methods.card && (
-                          <div className="mt-2">
-                            <label className="block text-sm font-medium text-gray-700">
-                              Link de pago
+                          <div className="ml-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              URL de pago personalizada (opcional)
                             </label>
-                            <div className="mt-1 flex rounded-md shadow-sm">
-                              <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
-                                <LinkIcon className="h-4 w-4" />
-                              </span>
+                            <div className="flex items-center">
                               <input
                                 type="url"
                                 value={productForm.allowed_payment_methods.payment_url}
@@ -1016,28 +1331,23 @@ export function AdminPanel() {
                                   }))
                                 }
                                 placeholder="https://..."
-                                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               />
                             </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Si se proporciona, se usará esta URL en lugar del procesador de pago predeterminado.
+                            </p>
                           </div>
-                        )}
-                        {!productForm.allowed_payment_methods.cash_on_delivery && 
-                         !productForm.allowed_payment_methods.card && (
-                          <p className="text-sm text-red-600">
-                            Debe habilitar al menos un método de pago
-                          </p>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
-
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                   <button
                     type="submit"
                     className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
                   >
-                    <Save className="h-5 w-5 mr-2" />
                     {editingProduct ? 'Guardar cambios' : 'Crear producto'}
                   </button>
                   <button
