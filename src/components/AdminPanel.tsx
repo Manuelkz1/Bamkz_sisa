@@ -109,9 +109,9 @@ export function AdminPanel() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      console.log('Cargando pedidos...');
+      setError(null);
       
-      // Consulta simplificada para obtener pedidos
+      // Consulta básica para obtener solo los pedidos
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*')
@@ -119,7 +119,7 @@ export function AdminPanel() {
 
       if (ordersError) {
         console.error('Error al cargar pedidos:', ordersError);
-        setError(ordersError.message);
+        setError('Error al cargar pedidos: ' + ordersError.message);
         toast.error('Error al cargar los pedidos');
         setLoading(false);
         return;
@@ -133,86 +133,21 @@ export function AdminPanel() {
         return;
       }
       
-      console.log(`Se encontraron ${ordersData.length} pedidos`);
-      
-      // Establecer los pedidos directamente, sin consultas anidadas
-      // Esto asegura que al menos se muestre la lista de pedidos básica
-      setOrders(ordersData.map(order => ({
+      // Establecer los pedidos con información básica
+      const basicOrders = ordersData.map(order => ({
         ...order,
-        order_items: [] // Inicialmente vacío, se llenará después si es posible
-      })));
+        order_items: []
+      }));
       
-      // Intentar cargar los items de pedidos en segundo plano
-      // Si falla, al menos ya tenemos la lista básica de pedidos visible
-      try {
-        // Obtener todos los items de pedidos de una sola vez
-        const { data: allItemsData, error: allItemsError } = await supabase
-          .from('order_items')
-          .select('id, order_id, product_id, quantity, selected_color');
-          
-        if (allItemsError) {
-          console.error('Error al cargar items de pedidos:', allItemsError);
-          return; // Mantener los pedidos básicos sin items
-        }
-        
-        if (!allItemsData || allItemsData.length === 0) {
-          console.log('No se encontraron items de pedidos');
-          return; // Mantener los pedidos básicos sin items
-        }
-        
-        // Obtener todos los productos de una sola vez
-        const { data: allProductsData, error: allProductsError } = await supabase
-          .from('products')
-          .select('id, name');
-          
-        if (allProductsError) {
-          console.error('Error al cargar productos:', allProductsError);
-          return; // Mantener los pedidos con items pero sin nombres de productos
-        }
-        
-        // Crear un mapa de productos para acceso rápido
-        const productsMap = {};
-        if (allProductsData) {
-          allProductsData.forEach(product => {
-            productsMap[product.id] = product;
-          });
-        }
-        
-        // Agrupar items por order_id
-        const itemsByOrderId = {};
-        allItemsData.forEach(item => {
-          if (!itemsByOrderId[item.order_id]) {
-            itemsByOrderId[item.order_id] = [];
-          }
-          
-          // Agregar información del producto si está disponible
-          const productInfo = item.product_id && productsMap[item.product_id] 
-            ? { name: productsMap[item.product_id].name } 
-            : { name: 'Producto no disponible' };
-            
-          itemsByOrderId[item.order_id].push({
-            ...item,
-            products: productInfo
-          });
-        });
-        
-        // Actualizar los pedidos con sus items correspondientes
-        const updatedOrders = ordersData.map(order => ({
-          ...order,
-          order_items: itemsByOrderId[order.id] || []
-        }));
-        
-        setOrders(updatedOrders);
-        console.log('Pedidos actualizados con items y productos');
-      } catch (itemsError) {
-        console.error('Error al procesar items y productos:', itemsError);
-        // No hacemos nada, mantenemos los pedidos básicos ya mostrados
-      }
+      // Actualizar el estado con la información básica primero
+      setOrders(basicOrders);
+      
+      // Cargar los items de pedidos
+      setLoading(false);
     } catch (error: any) {
       console.error('Error general al cargar pedidos:', error);
-      setError(error.message);
+      setError('Error general: ' + error.message);
       toast.error('Error al cargar los pedidos');
-    } finally {
       setLoading(false);
     }
   };
@@ -764,95 +699,114 @@ export function AdminPanel() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">
                   Pedidos
                 </h2>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Cliente
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Productos
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Total
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Pago
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Fecha
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Acciones
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {orders.map((order) => (
-                        <React.Fragment key={order.id}>
-                          <tr 
-                            className={`${expandedOrderId === order.id ? 'bg-gray-50' : ''} cursor-pointer hover:bg-gray-50`}
-                            onClick={() => toggleOrderExpand(order.id)}
-                          >
+                
+                {loading && (
+                  <div className="flex justify-center items-center py-10">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+                    <p className="ml-3 text-lg text-gray-600">Cargando pedidos...</p>
+                  </div>
+                )}
+                
+                {error && !loading && (
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <AlertCircle className="h-5 w-5 text-red-400" />
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm text-red-700">
+                          {error}
+                        </p>
+                        <button 
+                          onClick={() => loadOrders()}
+                          className="mt-2 text-sm font-medium text-red-700 hover:text-red-600"
+                        >
+                          Intentar nuevamente
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {!loading && !error && orders.length === 0 && (
+                  <div className="text-center py-10">
+                    <ShoppingBag className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No hay pedidos</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      No se encontraron pedidos en el sistema.
+                    </p>
+                  </div>
+                )}
+                
+                {!loading && !error && orders.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Cliente
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Estado
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Pago
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Fecha
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Acciones
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {orders.map((order) => (
+                          <tr key={order.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {order.id.slice(0, 8)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm text-gray-900">
                                 {order.is_guest
-                                  ? order.guest_info?.full_name + ' (Invitado)'
-                                  : order.shipping_address.full_name}
+                                  ? (order.guest_info?.full_name || 'Invitado') + ' (Invitado)'
+                                  : order.shipping_address?.full_name || 'Cliente'}
                               </div>
                               <div className="text-sm text-gray-500">
                                 {order.is_guest
-                                  ? order.guest_info?.email
-                                  : order.shipping_address.phone}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm text-gray-900">
-                                {order.order_items?.map((item) => (
-                                  <div key={item.id} className="mb-1">
-                                    {item.products?.name || 'Producto'} x{item.quantity}
-                                    {item.selected_color && ` (${item.selected_color})`}
-                                  </div>
-                                )) || 'Sin productos'}
+                                  ? order.guest_info?.email || 'Sin email'
+                                  : order.shipping_address?.phone || 'Sin teléfono'}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">
-                                ${order.total}
+                                ${order.total || 0}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[order.status].color}`}>
-                                {ORDER_STATUS_MAP[order.status].label}
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[order.status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                                {ORDER_STATUS_MAP[order.status]?.label || order.status || 'Desconocido'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[order.payment_status].color}`}>
-                                {PAYMENT_STATUS_MAP[order.payment_status].label}
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[order.payment_status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                                {PAYMENT_STATUS_MAP[order.payment_status]?.label || order.payment_status || 'Desconocido'}
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}
+                              {order.created_at ? format(new Date(order.created_at), 'dd/MM/yyyy HH:mm') : 'Fecha desconocida'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <div className="flex items-center space-x-2">
                                 <select
-                                  value={order.status}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleUpdateOrderStatus(order.id, e.target.value as Order['status']);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
+                                  value={order.status || 'pending'}
+                                  onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as Order['status'])}
                                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                                 >
                                   <option value="pending">Pendiente</option>
@@ -862,24 +816,29 @@ export function AdminPanel() {
                                   <option value="cancelled">Cancelado</option>
                                 </select>
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewOrderDetails(order);
-                                  }}
+                                  onClick={() => handleViewOrderDetails(order)}
                                   className="text-indigo-600 hover:text-indigo-900 p-1"
                                   title="Ver detalles"
                                 >
                                   <Eye className="h-5 w-5" />
                                 </button>
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteOrder(order.id);
-                                  }}
+                                  onClick={() => handleDeleteOrder(order.id)}
                                   className="text-red-600 hover:text-red-900 p-1"
                                   title="Eliminar pedido"
                                 >
                                   <Trash2 className="h-5 w-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
                                 </button>
                                 {expandedOrderId === order.id ? (
                                   <ChevronUp className="h-5 w-5 text-gray-500" />
