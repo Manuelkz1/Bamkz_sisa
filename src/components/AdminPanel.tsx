@@ -488,7 +488,9 @@ export function AdminPanel() {
         navigate('/login');
       }
     }
-  };  const handleViewOrderDetails = async (order: Order) => {
+  };
+  
+  const handleViewOrderDetails = async (order: Order) => {
     console.log('Visualizando detalles del pedido:', order.id);
     
     try {
@@ -527,7 +529,6 @@ export function AdminPanel() {
       console.error('Error general al cargar detalles del pedido:', error);
       toast.error('Error al cargar detalles del pedido');
     }
-  };
   };
 
   const toggleOrderExpand = (orderId: string) => {
