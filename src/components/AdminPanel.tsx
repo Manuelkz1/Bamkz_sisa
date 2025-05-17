@@ -976,64 +976,6 @@ export function AdminPanel() {
                 </div>
               </div>
             )}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Detalles del Pedido</h3>
-                                    <div className="bg-white p-4 rounded-md shadow-sm">
-                                      <p className="text-sm text-gray-700"><span className="font-medium">ID del Pedido:</span> {order.id}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Fecha:</span> {format(new Date(order.created_at), 'dd/MM/yyyy HH:mm')}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Método de Pago:</span> {order.payment_method === 'cash_on_delivery' ? 'Contra entrega' : 'Tarjeta'}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado del Pago:</span> {PAYMENT_STATUS_MAP[order.payment_status].label}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado del Pedido:</span> {ORDER_STATUS_MAP[order.status].label}</p>
-                                      {order.payment_id && (
-                                        <p className="text-sm text-gray-700"><span className="font-medium">ID de Pago:</span> {order.payment_id}</p>
-                                      )}
-                                      {order.notes && (
-                                        <p className="text-sm text-gray-700"><span className="font-medium">Notas:</span> {order.notes}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Productos</h3>
-                                    <div className="bg-white p-4 rounded-md shadow-sm">
-                                      <div className="space-y-2">
-                                        {order.order_items?.map((item) => (
-                                          <div key={item.id} className="flex justify-between">
-                                            <span className="text-sm text-gray-700">
-                                              {item.products.name} x{item.quantity}
-                                              {item.selected_color && ` (${item.selected_color})`}
-                                            </span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                      <div className="mt-4 pt-4 border-t border-gray-200">
-                                        <div className="flex justify-between">
-                                          <span className="text-sm font-medium text-gray-700">Subtotal:</span>
-                                          <span className="text-sm text-gray-700">${order.subtotal}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-sm font-medium text-gray-700">Envío:</span>
-                                          <span className="text-sm text-gray-700">${order.shipping_cost}</span>
-                                        </div>
-                                        <div className="flex justify-between font-medium">
-                                          <span className="text-sm text-gray-900">Total:</span>
-                                          <span className="text-sm text-gray-900">${order.total}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
 
             {activeTab === 'users' && (
               <div>
