@@ -39,7 +39,16 @@ export function ProductDetail() {
         setSelectedImage(data.images[0]);
       }
       if (data?.available_colors?.length > 0) {
-        setSelectedColor(data.available_colors[0]);
+        const firstColor = data.available_colors[0];
+        setSelectedColor(firstColor);
+        
+        // Si hay una imagen asociada al primer color, mostrarla
+        if (data.color_images && data.color_images.length > 0) {
+          const colorImage = data.color_images.find(ci => ci.color === firstColor);
+          if (colorImage && colorImage.image) {
+            setSelectedImage(colorImage.image);
+          }
+        }
       }
 
       // Load related products
@@ -201,7 +210,17 @@ export function ProductDetail() {
                   {product.available_colors.map((color) => (
                     <button
                       key={color}
-                      onClick={() => setSelectedColor(color)}
+                      onClick={() => {
+                        setSelectedColor(color);
+                        
+                        // Buscar si hay una imagen asociada a este color
+                        if (product.color_images && product.color_images.length > 0) {
+                          const colorImage = product.color_images.find(ci => ci.color === color);
+                          if (colorImage && colorImage.image) {
+                            setSelectedImage(colorImage.image);
+                          }
+                        }
+                      }}
                       className={`px-3 py-1 rounded-full text-sm ${
                         selectedColor === color
                           ? 'bg-indigo-600 text-white'

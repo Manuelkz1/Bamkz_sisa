@@ -10,6 +10,10 @@ export interface Product {
   updated_at: string;
   instructions_file?: string;
   available_colors?: string[];
+  color_images?: {
+    color: string;
+    image: string;
+  }[];
   allowed_payment_methods?: {
     cash_on_delivery: boolean;
     card: boolean;

@@ -65,6 +65,7 @@ export function AdminPanel() {
     stock: '',
     images: [] as string[],
     available_colors: [] as string[],
+    color_images: [] as {color: string, image: string}[],
     allowed_payment_methods: {
       cash_on_delivery: true,
       card: true,
@@ -191,6 +192,7 @@ export function AdminPanel() {
       stock: product.stock.toString(),
       images: product.images || [],
       available_colors: product.available_colors || [],
+      color_images: product.color_images || [],
       allowed_payment_methods: {
         cash_on_delivery: product.allowed_payment_methods?.cash_on_delivery ?? true,
         card: product.allowed_payment_methods?.card ?? true,
@@ -212,6 +214,7 @@ export function AdminPanel() {
         stock: parseInt(productForm.stock),
         images: productForm.images,
         available_colors: productForm.available_colors.filter(Boolean),
+        color_images: productForm.color_images.filter(item => item.color && item.image),
         allowed_payment_methods: {
           ...productForm.allowed_payment_methods,
           payment_url: productForm.allowed_payment_methods.card ? productForm.allowed_payment_methods.payment_url : ''
@@ -345,23 +348,74 @@ export function AdminPanel() {
   const handleColorAdd = () => {
     setProductForm(prev => ({
       ...prev,
-      available_colors: [...prev.available_colors, '']
+      available_colors: [...prev.available_colors, ''],
+      color_images: [...prev.color_images]
     }));
   };
 
   const handleColorChange = (index: number, value: string) => {
     const newColors = [...productForm.available_colors];
     newColors[index] = value;
+    
+    // Actualizar también el color en color_images si existe
+    const newColorImages = [...productForm.color_images];
+    const existingColorImageIndex = newColorImages.findIndex(ci => ci.color === productForm.available_colors[index]);
+    if (existingColorImageIndex >= 0) {
+      newColorImages[existingColorImageIndex].color = value;
+    }
+    
     setProductForm(prev => ({
       ...prev,
-      available_colors: newColors
+      available_colors: newColors,
+      color_images: newColorImages
     }));
   };
 
   const handleColorRemove = (index: number) => {
+    const colorToRemove = productForm.available_colors[index];
+    
+    // Eliminar también la asociación color-imagen si existe
+    const newColorImages = productForm.color_images.filter(ci => ci.color !== colorToRemove);
+    
     setProductForm(prev => ({
       ...prev,
-      available_colors: prev.available_colors.filter((_, i) => i !== index)
+      available_colors: prev.available_colors.filter((_, i) => i !== index),
+      color_images: newColorImages
+    }));
+  };
+  
+  const handleColorImageAdd = (color: string) => {
+    // Si ya existe una asociación para este color, no hacer nada
+    if (productForm.color_images.some(ci => ci.color === color)) {
+      return;
+    }
+    
+    setProductForm(prev => ({
+      ...prev,
+      color_images: [...prev.color_images, { color, image: '' }]
+    }));
+  };
+  
+  const handleColorImageChange = (color: string, image: string) => {
+    const newColorImages = [...productForm.color_images];
+    const index = newColorImages.findIndex(ci => ci.color === color);
+    
+    if (index >= 0) {
+      newColorImages[index].image = image;
+    } else {
+      newColorImages.push({ color, image });
+    }
+    
+    setProductForm(prev => ({
+      ...prev,
+      color_images: newColorImages
+    }));
+  };
+  
+  const handleColorImageRemove = (color: string) => {
+    setProductForm(prev => ({
+      ...prev,
+      color_images: prev.color_images.filter(ci => ci.color !== color)
     }));
   };
 
@@ -684,10 +738,10 @@ export function AdminPanel() {
                               <div className="text-sm text-gray-900">
                                 {order.order_items?.map((item) => (
                                   <div key={item.id} className="mb-1">
-                                    {item.products.name} x{item.quantity}
+                                    {item.products?.name || 'Producto'} x{item.quantity}
                                     {item.selected_color && ` (${item.selected_color})`}
                                   </div>
-                                ))}
+                                )) || 'Sin productos'}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1223,45 +1277,92 @@ export function AdminPanel() {
                         className="mt-2 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Agregar imagen
+                        Agregar URL de imagen
                       </button>
                     </div>
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Colores disponibles
-                      </label>
-                      {productForm.available_colors.map((color, index) => (
-                        <div key={index} className="flex mb-2">
-                          <input
-                            type="text"
-                            value={color}
-                            onChange={(e) =>
-                              handleColorChange(index, e.target.value)
-                            }
-                            placeholder="Nombre del color"
-                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleColorRemove(index)}
-                            className="ml-2 text-red-600 hover:text-red-800"
-                          >
-                            <X className="h-5 w-5" />
-                          </button>
+                {/* Color options */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Colores disponibles
+                  </label>
+                  {productForm.available_colors.map((color, index) => (
+                    <div key={index} className="flex flex-col mb-4 p-3 border border-gray-200 rounded-md">
+                      <div className="flex items-center mb-2">
+                        <input
+                          type="text"
+                          value={color}
+                          onChange={(e) => handleColorChange(index, e.target.value)}
+                          placeholder="Nombre del color"
+                          className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleColorRemove(index)}
+                          className="ml-2 inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      
+                      {/* Imagen asociada al color */}
+                      {color && (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Imagen para {color}
+                          </label>
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              value={productForm.color_images.find(ci => ci.color === color)?.image || ''}
+                              onChange={(e) => handleColorImageChange(color, e.target.value)}
+                              placeholder="URL de la imagen para este color"
+                              className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            />
+                            {productForm.color_images.some(ci => ci.color === color) ? (
+                              <button
+                                type="button"
+                                onClick={() => handleColorImageRemove(color)}
+                                className="ml-2 inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleColorImageAdd(color)}
+                                className="ml-2 inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                          {productForm.color_images.find(ci => ci.color === color)?.image && (
+                            <div className="mt-2">
+                              <img 
+                                src={productForm.color_images.find(ci => ci.color === color)?.image} 
+                                alt={`Vista previa de ${color}`} 
+                                className="h-20 w-20 object-cover rounded-md"
+                              />
+                            </div>
+                          )}
                         </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={handleColorAdd}
-                        className="mt-2 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Agregar color
-                      </button>
+                      )}
                     </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleColorAdd}
+                    className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Agregar color
+                  </button>
+                </div>
 
-                    <div>
+                <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Métodos de pago permitidos
                       </label>
