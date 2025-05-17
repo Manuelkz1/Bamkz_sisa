@@ -488,11 +488,46 @@ export function AdminPanel() {
         navigate('/login');
       }
     }
+  };  const handleViewOrderDetails = async (order: Order) => {
+    console.log('Visualizando detalles del pedido:', order.id);
+    
+    try {
+      // Cargar datos completos del pedido para asegurar que tenemos toda la información
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', order.id)
+        .single();
+        
+      if (orderError) {
+        console.error('Error al cargar detalles del pedido:', orderError);
+        toast.error('Error al cargar detalles del pedido');
+        return;
+      }
+      
+      // Cargar items del pedido si existen
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*, products(*)')
+        .eq('order_id', order.id);
+        
+      if (itemsError) {
+        console.error('Error al cargar items del pedido:', itemsError);
+      }
+      
+      // Combinar datos y establecer el pedido seleccionado
+      const completeOrder = {
+        ...orderData,
+        items: orderItems || [],
+      };
+      
+      console.log('Pedido completo cargado:', completeOrder);
+      setSelectedOrder(completeOrder);
+    } catch (error) {
+      console.error('Error general al cargar detalles del pedido:', error);
+      toast.error('Error al cargar detalles del pedido');
+    }
   };
-
-  const handleViewOrderDetails = (order: Order) => {
-    setSelectedOrder(order);
-    setShowOrderDetailModal(true);
   };
 
   const toggleOrderExpand = (orderId: string) => {
