@@ -109,23 +109,102 @@ export function AdminPanel() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      console.log('Cargando pedidos...');
+      
+      // Primero obtenemos todos los pedidos
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            selected_color,
-            products (
-              name
-            )
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setOrders(data || []);
+      if (ordersError) throw ordersError;
+      
+      if (!ordersData || ordersData.length === 0) {
+        console.log('No se encontraron pedidos');
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`Se encontraron ${ordersData.length} pedidos`);
+      
+      // Para cada pedido, obtenemos sus items
+      const ordersWithItems = await Promise.all(
+        ordersData.map(async (order) => {
+          try {
+            const { data: itemsData, error: itemsError } = await supabase
+              .from('order_items')
+              .select(`
+                id,
+                quantity,
+                selected_color,
+                product_id
+              `)
+              .eq('order_id', order.id);
+              
+            if (itemsError) {
+              console.error(`Error al cargar items del pedido ${order.id}:`, itemsError);
+              return {
+                ...order,
+                order_items: []
+              };
+            }
+            
+            // Para cada item, obtenemos el nombre del producto
+            const itemsWithProductNames = await Promise.all(
+              (itemsData || []).map(async (item) => {
+                if (!item.product_id) {
+                  return {
+                    ...item,
+                    products: { name: 'Producto sin nombre' }
+                  };
+                }
+                
+                try {
+                  const { data: productData, error: productError } = await supabase
+                    .from('products')
+                    .select('name')
+                    .eq('id', item.product_id)
+                    .single();
+                    
+                  if (productError || !productData) {
+                    console.error(`Error al cargar producto ${item.product_id}:`, productError);
+                    return {
+                      ...item,
+                      products: { name: 'Producto no encontrado' }
+                    };
+                  }
+                  
+                  return {
+                    ...item,
+                    products: { name: productData.name }
+                  };
+                } catch (err) {
+                  console.error(`Error al procesar producto ${item.product_id}:`, err);
+                  return {
+                    ...item,
+                    products: { name: 'Error al cargar producto' }
+                  };
+                }
+              })
+            );
+            
+            return {
+              ...order,
+              order_items: itemsWithProductNames
+            };
+          } catch (err) {
+            console.error(`Error al procesar items del pedido ${order.id}:`, err);
+            return {
+              ...order,
+              order_items: []
+            };
+          }
+        })
+      );
+      
+      console.log('Pedidos procesados correctamente');
+      setOrders(ordersWithItems);
     } catch (error: any) {
       console.error('Error loading orders:', error);
       setError(error.message);
@@ -1413,33 +1492,7 @@ export function AdminPanel() {
                         Tarjeta de crédito/débito
                       </label>
                     </div>
-                    {productForm.allowed_payment_methods.card && (
-                      <div className="ml-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          URL de pago personalizada (opcional)
-                        </label>
-                        <div className="flex items-center">
-                          <input
-                            type="url"
-                            value={productForm.allowed_payment_methods.payment_url}
-                            onChange={(e) =>
-                              setProductForm((prev) => ({
-                                ...prev,
-                                allowed_payment_methods: {
-                                  ...prev.allowed_payment_methods,
-                                  payment_url: e.target.value
-                                }
-                              }))
-                            }
-                            placeholder="https://..."
-                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Si se proporciona, se usará esta URL en lugar del procesador de pago predeterminado.
-                        </p>
-                      </div>
-                    )}
+                    {/* Se eliminó la opción de URL de pago personalizada por no estar en uso */}
                   </div>
                 </div>
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
