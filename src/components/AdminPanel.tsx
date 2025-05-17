@@ -111,14 +111,21 @@ export function AdminPanel() {
       setLoading(true);
       console.log('Cargando pedidos...');
       
-      // Primero obtenemos todos los pedidos
+      // Consulta simplificada para obtener pedidos
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (ordersError) throw ordersError;
+      if (ordersError) {
+        console.error('Error al cargar pedidos:', ordersError);
+        setError(ordersError.message);
+        toast.error('Error al cargar los pedidos');
+        setLoading(false);
+        return;
+      }
       
+      // Si no hay pedidos, establecer array vacío y terminar
       if (!ordersData || ordersData.length === 0) {
         console.log('No se encontraron pedidos');
         setOrders([]);
@@ -128,85 +135,81 @@ export function AdminPanel() {
       
       console.log(`Se encontraron ${ordersData.length} pedidos`);
       
-      // Para cada pedido, obtenemos sus items
-      const ordersWithItems = await Promise.all(
-        ordersData.map(async (order) => {
-          try {
-            const { data: itemsData, error: itemsError } = await supabase
-              .from('order_items')
-              .select(`
-                id,
-                quantity,
-                selected_color,
-                product_id
-              `)
-              .eq('order_id', order.id);
-              
-            if (itemsError) {
-              console.error(`Error al cargar items del pedido ${order.id}:`, itemsError);
-              return {
-                ...order,
-                order_items: []
-              };
-            }
-            
-            // Para cada item, obtenemos el nombre del producto
-            const itemsWithProductNames = await Promise.all(
-              (itemsData || []).map(async (item) => {
-                if (!item.product_id) {
-                  return {
-                    ...item,
-                    products: { name: 'Producto sin nombre' }
-                  };
-                }
-                
-                try {
-                  const { data: productData, error: productError } = await supabase
-                    .from('products')
-                    .select('name')
-                    .eq('id', item.product_id)
-                    .single();
-                    
-                  if (productError || !productData) {
-                    console.error(`Error al cargar producto ${item.product_id}:`, productError);
-                    return {
-                      ...item,
-                      products: { name: 'Producto no encontrado' }
-                    };
-                  }
-                  
-                  return {
-                    ...item,
-                    products: { name: productData.name }
-                  };
-                } catch (err) {
-                  console.error(`Error al procesar producto ${item.product_id}:`, err);
-                  return {
-                    ...item,
-                    products: { name: 'Error al cargar producto' }
-                  };
-                }
-              })
-            );
-            
-            return {
-              ...order,
-              order_items: itemsWithProductNames
-            };
-          } catch (err) {
-            console.error(`Error al procesar items del pedido ${order.id}:`, err);
-            return {
-              ...order,
-              order_items: []
-            };
-          }
-        })
-      );
+      // Establecer los pedidos directamente, sin consultas anidadas
+      // Esto asegura que al menos se muestre la lista de pedidos básica
+      setOrders(ordersData.map(order => ({
+        ...order,
+        order_items: [] // Inicialmente vacío, se llenará después si es posible
+      })));
       
-      console.log('Pedidos procesados correctamente');
-      setOrders(ordersWithItems);
+      // Intentar cargar los items de pedidos en segundo plano
+      // Si falla, al menos ya tenemos la lista básica de pedidos visible
+      try {
+        // Obtener todos los items de pedidos de una sola vez
+        const { data: allItemsData, error: allItemsError } = await supabase
+          .from('order_items')
+          .select('id, order_id, product_id, quantity, selected_color');
+          
+        if (allItemsError) {
+          console.error('Error al cargar items de pedidos:', allItemsError);
+          return; // Mantener los pedidos básicos sin items
+        }
+        
+        if (!allItemsData || allItemsData.length === 0) {
+          console.log('No se encontraron items de pedidos');
+          return; // Mantener los pedidos básicos sin items
+        }
+        
+        // Obtener todos los productos de una sola vez
+        const { data: allProductsData, error: allProductsError } = await supabase
+          .from('products')
+          .select('id, name');
+          
+        if (allProductsError) {
+          console.error('Error al cargar productos:', allProductsError);
+          return; // Mantener los pedidos con items pero sin nombres de productos
+        }
+        
+        // Crear un mapa de productos para acceso rápido
+        const productsMap = {};
+        if (allProductsData) {
+          allProductsData.forEach(product => {
+            productsMap[product.id] = product;
+          });
+        }
+        
+        // Agrupar items por order_id
+        const itemsByOrderId = {};
+        allItemsData.forEach(item => {
+          if (!itemsByOrderId[item.order_id]) {
+            itemsByOrderId[item.order_id] = [];
+          }
+          
+          // Agregar información del producto si está disponible
+          const productInfo = item.product_id && productsMap[item.product_id] 
+            ? { name: productsMap[item.product_id].name } 
+            : { name: 'Producto no disponible' };
+            
+          itemsByOrderId[item.order_id].push({
+            ...item,
+            products: productInfo
+          });
+        });
+        
+        // Actualizar los pedidos con sus items correspondientes
+        const updatedOrders = ordersData.map(order => ({
+          ...order,
+          order_items: itemsByOrderId[order.id] || []
+        }));
+        
+        setOrders(updatedOrders);
+        console.log('Pedidos actualizados con items y productos');
+      } catch (itemsError) {
+        console.error('Error al procesar items y productos:', itemsError);
+        // No hacemos nada, mantenemos los pedidos básicos ya mostrados
+      }
     } catch (error: any) {
-      console.error('Error loading orders:', error);
+      console.error('Error general al cargar pedidos:', error);
       setError(error.message);
       toast.error('Error al cargar los pedidos');
     } finally {
