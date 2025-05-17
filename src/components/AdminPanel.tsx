@@ -839,45 +839,135 @@ export function AdminPanel() {
                 )}
               </div>
             )}
-                                </button>
-                                {expandedOrderId === order.id ? (
-                                  <ChevronUp className="h-5 w-5 text-gray-500" />
-                                ) : (
-                                  <ChevronDown className="h-5 w-5 text-gray-500" />
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                          {expandedOrderId === order.id && (
+
+            {/* Modal para ver detalles de pedido */}
+            {selectedOrder && (
+              <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Detalles del Pedido #{selectedOrder.id.slice(0, 8)}
+                    </h3>
+                    <button
+                      onClick={() => setSelectedOrder(null)}
+                      className="text-gray-400 hover:text-gray-500"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="px-6 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Información del Cliente</h3>
+                        <div className="bg-white p-4 rounded-md shadow-sm">
+                          {selectedOrder.is_guest ? (
+                            <>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {selectedOrder.guest_info?.full_name || 'Invitado'}</p>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {selectedOrder.guest_info?.email || 'No disponible'}</p>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {selectedOrder.guest_info?.phone || 'No disponible'}</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {selectedOrder.shipping_address?.full_name || 'No disponible'}</p>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {selectedOrder.user_email || 'No disponible'}</p>
+                              <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {selectedOrder.shipping_address?.phone || 'No disponible'}</p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Dirección de Envío</h3>
+                        <div className="bg-white p-4 rounded-md shadow-sm">
+                          <p className="text-sm text-gray-700"><span className="font-medium">Dirección:</span> {selectedOrder.shipping_address?.address || 'No disponible'}</p>
+                          <p className="text-sm text-gray-700"><span className="font-medium">Ciudad:</span> {selectedOrder.shipping_address?.city || 'No disponible'}</p>
+                          <p className="text-sm text-gray-700"><span className="font-medium">Estado/Provincia:</span> {selectedOrder.shipping_address?.state || 'No disponible'}</p>
+                          <p className="text-sm text-gray-700"><span className="font-medium">Código Postal:</span> {selectedOrder.shipping_address?.postal_code || 'No disponible'}</p>
+                          <p className="text-sm text-gray-700"><span className="font-medium">País:</span> {selectedOrder.shipping_address?.country || 'No disponible'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">Estado del Pedido</h3>
+                      <div className="bg-white p-4 rounded-md shadow-sm">
+                        <div className="flex flex-wrap gap-4">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Estado del pedido</p>
+                            <select
+                              value={selectedOrder.status}
+                              onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value as Order['status'])}
+                              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            >
+                              <option value="pending">Pendiente</option>
+                              <option value="processing">Procesando</option>
+                              <option value="shipped">Enviado</option>
+                              <option value="delivered">Entregado</option>
+                              <option value="cancelled">Cancelado</option>
+                            </select>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Estado del pago</p>
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${PAYMENT_STATUS_MAP[selectedOrder.payment_status]?.color || 'bg-gray-100 text-gray-800'}`}>
+                              {PAYMENT_STATUS_MAP[selectedOrder.payment_status]?.label || selectedOrder.payment_status}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Método de pago</p>
+                            <span className="text-sm text-gray-700">
+                              {selectedOrder.payment_method === 'cash_on_delivery' ? 'Contra entrega' : 'Tarjeta'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">Fecha del pedido</p>
+                            <span className="text-sm text-gray-700">
+                              {format(new Date(selectedOrder.created_at), 'dd/MM/yyyy HH:mm')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-6">
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">Productos</h3>
+                      <div className="bg-white rounded-md shadow-sm overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
                             <tr>
-                              <td colSpan={8} className="px-6 py-4 bg-gray-50">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div>
-                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Información del Cliente</h3>
-                                    <div className="bg-white p-4 rounded-md shadow-sm">
-                                      {order.is_guest ? (
-                                        <>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {order.guest_info?.full_name} (Invitado)</p>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {order.guest_info?.email}</p>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {order.guest_info?.phone}</p>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Nombre:</span> {order.shipping_address.full_name}</p>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Email:</span> {order.user_email}</p>
-                                          <p className="text-sm text-gray-700"><span className="font-medium">Teléfono:</span> {order.shipping_address.phone}</p>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <h3 className="text-sm font-medium text-gray-900 mb-2">Dirección de Envío</h3>
-                                    <div className="bg-white p-4 rounded-md shadow-sm">
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Dirección:</span> {order.shipping_address.address}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Ciudad:</span> {order.shipping_address.city}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Estado/Provincia:</span> {order.shipping_address.state}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">Código Postal:</span> {order.shipping_address.postal_code}</p>
-                                      <p className="text-sm text-gray-700"><span className="font-medium">País:</span> {order.shipping_address.country}</p>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
+                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {selectedOrder.items?.map((item, index) => (
+                              <tr key={index}>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.product?.name || 'Producto no disponible'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.selectedColor || 'N/A'}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.product?.price || 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50">
+                            <tr>
+                              <td colSpan={3} className="px-6 py-4 text-sm font-medium text-gray-900 text-right">Subtotal:</td>
+                              <td className="px-6 py-4 text-sm text-gray-900">${selectedOrder.total || 0}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+                    <button
+                      onClick={() => setSelectedOrder(null)}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
                                     </div>
                                   </div>
                                   <div>
