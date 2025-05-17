@@ -223,23 +223,74 @@ export function AdminPanel() {
     e.preventDefault();
     
     try {
+      // Validación de campos obligatorios
+      if (!productForm.name.trim()) {
+        toast.error('El nombre del producto es obligatorio');
+        return;
+      }
+      
+      if (!productForm.description.trim()) {
+        toast.error('La descripción del producto es obligatoria');
+        return;
+      }
+      
+      if (!productForm.price || isNaN(parseFloat(productForm.price)) || parseFloat(productForm.price) <= 0) {
+        toast.error('El precio debe ser un número válido mayor que cero');
+        return;
+      }
+      
+      if (!productForm.stock || isNaN(parseInt(productForm.stock)) || parseInt(productForm.stock) < 0) {
+        toast.error('El stock debe ser un número válido no negativo');
+        return;
+      }
+      
+      // Filtrar imágenes vacías
+      const filteredImages = productForm.images.filter(img => img.trim() !== '');
+      
+      // Validar que haya al menos una imagen
+      if (filteredImages.length === 0) {
+        toast.error('Debe agregar al menos una imagen del producto');
+        return;
+      }
+      
+      // Filtrar colores vacíos y asegurar que no haya duplicados
+      const filteredColors = [...new Set(productForm.available_colors.filter(color => color.trim() !== ''))];
+      
+      // Validar y limpiar color_images
+      let validColorImages = [];
+      if (filteredColors.length > 0) {
+        // Solo incluir color_images para colores que existen en available_colors
+        validColorImages = productForm.color_images
+          .filter(item => 
+            item.color && 
+            item.image && 
+            item.color.trim() !== '' && 
+            item.image.trim() !== '' &&
+            filteredColors.includes(item.color)
+          );
+      }
+      
       const productData = {
-        name: productForm.name,
-        description: productForm.description,
+        name: productForm.name.trim(),
+        description: productForm.description.trim(),
         price: parseFloat(productForm.price),
-        category: productForm.category,
+        category: productForm.category.trim(),
         stock: parseInt(productForm.stock),
-        images: productForm.images,
-        available_colors: productForm.available_colors.filter(Boolean),
-        color_images: productForm.color_images.filter(item => item.color && item.image),
+        images: filteredImages,
+        available_colors: filteredColors,
+        color_images: validColorImages,
         allowed_payment_methods: {
           ...productForm.allowed_payment_methods,
-          payment_url: productForm.allowed_payment_methods.card ? productForm.allowed_payment_methods.payment_url : ''
+          payment_url: productForm.allowed_payment_methods.card ? 
+            productForm.allowed_payment_methods.payment_url.trim() : 
+            ''
         }
       };
 
+      console.log('Guardando producto con datos:', JSON.stringify(productData, null, 2));
+
       if (editingProduct) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('products')
           .update({
             ...productData,
@@ -248,15 +299,23 @@ export function AdminPanel() {
           .eq('id', editingProduct.id)
           .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error detallado de Supabase:', error);
+          throw error;
+        }
+        
         toast.success('Producto actualizado exitosamente');
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('products')
           .insert([productData])
           .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error detallado de Supabase:', error);
+          throw error;
+        }
+        
         toast.success('Producto creado exitosamente');
       }
 
@@ -270,6 +329,7 @@ export function AdminPanel() {
         stock: '',
         images: [],
         available_colors: [],
+        color_images: [],
         allowed_payment_methods: {
           cash_on_delivery: true,
           card: true,
@@ -279,7 +339,12 @@ export function AdminPanel() {
       loadProducts();
     } catch (error: any) {
       console.error('Error saving product:', error);
-      toast.error('Error al guardar el producto');
+      // Mostrar mensaje de error más específico si está disponible
+      if (error.message) {
+        toast.error(`Error al guardar el producto: ${error.message}`);
+      } else {
+        toast.error('Error al guardar el producto');
+      }
     }
   };
 
@@ -414,13 +479,19 @@ export function AdminPanel() {
   };
   
   const handleColorImageChange = (color: string, image: string) => {
+    // Validar que la URL de la imagen no esté vacía
+    if (!image || image.trim() === '') {
+      toast.error(`Debe ingresar una URL de imagen válida para el color ${color}`);
+      return;
+    }
+    
     const newColorImages = [...productForm.color_images];
     const index = newColorImages.findIndex(ci => ci.color === color);
     
     if (index >= 0) {
-      newColorImages[index].image = image;
+      newColorImages[index].image = image.trim();
     } else {
-      newColorImages.push({ color, image });
+      newColorImages.push({ color, image: image.trim() });
     }
     
     setProductForm(prev => ({
