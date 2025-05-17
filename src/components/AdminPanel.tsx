@@ -1363,85 +1363,83 @@ export function AdminPanel() {
                 </div>
 
                 <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Métodos de pago permitidos
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Métodos de pago permitidos
+                  </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="cash_on_delivery"
+                        checked={productForm.allowed_payment_methods.cash_on_delivery}
+                        onChange={(e) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            allowed_payment_methods: {
+                              ...prev.allowed_payment_methods,
+                              cash_on_delivery: e.target.checked
+                            }
+                          }))
+                        }
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor="cash_on_delivery"
+                        className="ml-2 block text-sm text-gray-700"
+                      >
+                        Pago contra entrega
                       </label>
-                      <div className="space-y-2">
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="cash_on_delivery"
-                            checked={productForm.allowed_payment_methods.cash_on_delivery}
-                            onChange={(e) =>
-                              setProductForm((prev) => ({
-                                ...prev,
-                                allowed_payment_methods: {
-                                  ...prev.allowed_payment_methods,
-                                  cash_on_delivery: e.target.checked
-                                }
-                              }))
-                            }
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                          />
-                          <label
-                            htmlFor="cash_on_delivery"
-                            className="ml-2 block text-sm text-gray-700"
-                          >
-                            Pago contra entrega
-                          </label>
-                        </div>
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            id="card"
-                            checked={productForm.allowed_payment_methods.card}
-                            onChange={(e) =>
-                              setProductForm((prev) => ({
-                                ...prev,
-                                allowed_payment_methods: {
-                                  ...prev.allowed_payment_methods,
-                                  card: e.target.checked
-                                }
-                              }))
-                            }
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                          />
-                          <label
-                            htmlFor="card"
-                            className="ml-2 block text-sm text-gray-700"
-                          >
-                            Tarjeta de crédito/débito
-                          </label>
-                        </div>
-                        {productForm.allowed_payment_methods.card && (
-                          <div className="ml-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              URL de pago personalizada (opcional)
-                            </label>
-                            <div className="flex items-center">
-                              <input
-                                type="url"
-                                value={productForm.allowed_payment_methods.payment_url}
-                                onChange={(e) =>
-                                  setProductForm((prev) => ({
-                                    ...prev,
-                                    allowed_payment_methods: {
-                                      ...prev.allowed_payment_methods,
-                                      payment_url: e.target.value
-                                    }
-                                  }))
-                                }
-                                placeholder="https://..."
-                                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                              />
-                            </div>
-                            <p className="mt-1 text-xs text-gray-500">
-                              Si se proporciona, se usará esta URL en lugar del procesador de pago predeterminado.
-                            </p>
-                          </div>
-                        )}
-                      </div>
                     </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="card"
+                        checked={productForm.allowed_payment_methods.card}
+                        onChange={(e) =>
+                          setProductForm((prev) => ({
+                            ...prev,
+                            allowed_payment_methods: {
+                              ...prev.allowed_payment_methods,
+                              card: e.target.checked
+                            }
+                          }))
+                        }
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor="card"
+                        className="ml-2 block text-sm text-gray-700"
+                      >
+                        Tarjeta de crédito/débito
+                      </label>
+                    </div>
+                    {productForm.allowed_payment_methods.card && (
+                      <div className="ml-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          URL de pago personalizada (opcional)
+                        </label>
+                        <div className="flex items-center">
+                          <input
+                            type="url"
+                            value={productForm.allowed_payment_methods.payment_url}
+                            onChange={(e) =>
+                              setProductForm((prev) => ({
+                                ...prev,
+                                allowed_payment_methods: {
+                                  ...prev.allowed_payment_methods,
+                                  payment_url: e.target.value
+                                }
+                              }))
+                            }
+                            placeholder="https://..."
+                            className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Si se proporciona, se usará esta URL en lugar del procesador de pago predeterminado.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
