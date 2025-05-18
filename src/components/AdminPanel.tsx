@@ -1623,6 +1623,50 @@ export function AdminPanel() {
                     {/* Se eliminó la opción de URL de pago personalizada por no estar en uso */}
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Archivo de instrucciones (PDF u otro formato)
+                  </label>
+                  <div className="mt-1 flex items-center">
+                    <input
+                      type="text"
+                      value={productForm.instructions_file || ''}
+                      onChange={(e) =>
+                        setProductForm((prev) => ({
+                          ...prev,
+                          instructions_file: e.target.value
+                        }))
+                      }
+                      placeholder="URL del archivo de instrucciones"
+                      className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                    />
+                  </div>
+                  {productForm.instructions_file && (
+                    <div className="mt-2 flex items-center">
+                      <a 
+                        href={productForm.instructions_file} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:text-indigo-500 flex items-center"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Ver archivo actual
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setProductForm(prev => ({ ...prev, instructions_file: '' }))}
+                        className="ml-2 inline-flex items-center p-1 border border-transparent rounded-full shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  <p className="mt-2 text-sm text-gray-500">
+                    Ingresa la URL completa del archivo de instrucciones. Puedes subir el archivo a un servicio como Google Drive o Dropbox y pegar el enlace aquí.
+                  </p>
+                </div>
+
                 <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                   <button
                     type="submit"

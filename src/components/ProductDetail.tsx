@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, ShoppingCart, FileText, Share2 } from 'lucide-react';
-import type { Product } from '../types';
+import { ArrowLeft, ShoppingCart, FileText, Share2, Tag } from 'lucide-react';
+import type { Product, Promotion } from '../types';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 
@@ -17,6 +17,7 @@ export function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [activePromotion, setActivePromotion] = useState<Promotion | null>(null);
 
   useEffect(() => {
     loadProduct();
@@ -49,6 +50,25 @@ export function ProductDetail() {
             setSelectedImage(colorImage.image);
           }
         }
+      }
+
+      // Cargar promociones activas para este producto
+      const { data: promotionData, error: promotionError } = await supabase
+        .from('promotion_products')
+        .select(`
+          promotion:promotions(
+            id, name, type, buy_quantity, get_quantity, total_price, is_active, 
+            start_date, end_date, created_at, updated_at
+          )
+        `)
+        .eq('product_id', id)
+        .filter('promotion.is_active', 'eq', true)
+        .filter('promotion.start_date', 'lte', new Date().toISOString())
+        .filter('promotion.end_date', 'gte', new Date().toISOString())
+        .maybeSingle();
+
+      if (!promotionError && promotionData && promotionData.promotion) {
+        setActivePromotion(promotionData.promotion);
       }
 
       // Load related products
@@ -193,7 +213,38 @@ export function ProductDetail() {
 
             <div className="mt-3">
               <h2 className="sr-only">Información del producto</h2>
-              <p className="text-3xl text-gray-900">${product.price}</p>
+              <div className="flex items-center">
+                {activePromotion ? (
+                  <>
+                    {activePromotion.type === '2x1' || activePromotion.type === '3x1' || activePromotion.type === '3x2' ? (
+                      <div className="flex flex-col">
+                        <p className="text-3xl text-gray-900">${product.price}</p>
+                        <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                          <Tag className="h-4 w-4 mr-1" />
+                          {activePromotion.type === '2x1' && 'Compra 2, paga 1'}
+                          {activePromotion.type === '3x1' && 'Compra 3, paga 1'}
+                          {activePromotion.type === '3x2' && 'Compra 3, paga 2'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        <div className="flex items-center">
+                          <p className="text-xl text-gray-500 line-through mr-2">${product.price}</p>
+                          <p className="text-3xl font-bold text-red-600">
+                            ${activePromotion.total_price ? activePromotion.total_price : (product.price * 0.8).toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                          <Tag className="h-4 w-4 mr-1" />
+                          {activePromotion.total_price ? 'Precio especial' : '20% de descuento'}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-3xl text-gray-900">${product.price}</p>
+                )}
+              </div>
             </div>
 
             <div className="mt-6">

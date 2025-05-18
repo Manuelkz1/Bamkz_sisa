@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ShoppingCart, Search, Filter, X } from 'lucide-react';
+import { ShoppingCart, Search, Filter, X, Tag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
-import type { Product } from '../types';
+import type { Product, Promotion } from '../types';
 
 export function ProductGrid() {
   const navigate = useNavigate();
   const cartStore = useCartStore();
   const [products, setProducts] = useState<Product[]>([]);
+  const [productPromotions, setProductPromotions] = useState<{[key: string]: Promotion}>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,6 +71,37 @@ export function ProductGrid() {
       setProducts(filteredProducts);
       const uniqueCategories = Array.from(new Set(data.map(p => p.category).filter(Boolean)));
       setCategories(uniqueCategories);
+      
+      // Cargar promociones activas para todos los productos
+      if (filteredProducts.length > 0) {
+        const productIds = filteredProducts.map(p => p.id);
+        
+        const { data: promotionsData, error: promotionsError } = await supabase
+          .from('promotion_products')
+          .select(`
+            product_id,
+            promotion:promotions(
+              id, name, type, buy_quantity, get_quantity, total_price, is_active, 
+              start_date, end_date, created_at, updated_at
+            )
+          `)
+          .in('product_id', productIds)
+          .filter('promotion.is_active', 'eq', true)
+          .filter('promotion.start_date', 'lte', new Date().toISOString())
+          .filter('promotion.end_date', 'gte', new Date().toISOString());
+          
+        if (!promotionsError && promotionsData) {
+          const promotionsMap: {[key: string]: Promotion} = {};
+          
+          promotionsData.forEach((item: any) => {
+            if (item.promotion && item.product_id) {
+              promotionsMap[item.product_id] = item.promotion;
+            }
+          });
+          
+          setProductPromotions(promotionsMap);
+        }
+      }
     } catch (error: any) {
       console.error('Error loading products:', error);
       setError('Error al cargar los productos');
@@ -217,7 +249,38 @@ export function ProductGrid() {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
               <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
               <div className="flex justify-between items-center">
-                <span className="text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
+                <div className="flex flex-col">
+                  {productPromotions[product.id] ? (
+                    <>
+                      {productPromotions[product.id].type === '2x1' || productPromotions[product.id].type === '3x1' || productPromotions[product.id].type === '3x2' ? (
+                        <>
+                          <span className="text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {productPromotions[product.id].type === '2x1' && 'Compra 2, paga 1'}
+                            {productPromotions[product.id].type === '3x1' && 'Compra 3, paga 1'}
+                            {productPromotions[product.id].type === '3x2' && 'Compra 3, paga 2'}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center">
+                            <span className="text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
+                            <span className="text-2xl font-bold text-red-600">
+                              ${productPromotions[product.id].total_price ? productPromotions[product.id].total_price.toFixed(2) : (product.price * 0.8).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <Tag className="h-3 w-3 mr-1" />
+                            {productPromotions[product.id].total_price ? 'Precio especial' : '20% de descuento'}
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={(e) => handleAddToCart(product, e)}
