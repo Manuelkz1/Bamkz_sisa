@@ -18,6 +18,7 @@ export function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [activePromotion, setActivePromotion] = useState<Promotion | null>(null);
+  const [quantity, setQuantity] = useState<number>(1);
 
   useEffect(() => {
     loadProduct();
@@ -101,7 +102,7 @@ export function ProductDetail() {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (qty: number = 1) => {
     if (!product) return;
     
     if (product.available_colors?.length && !selectedColor) {
@@ -109,11 +110,11 @@ export function ProductDetail() {
       return;
     }
 
-    cartStore.addItem(product, 1, selectedColor);
-    toast.success('Producto agregado al carrito');
+    cartStore.addItem(product, qty, selectedColor);
+    toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = (qty: number = 1) => {
     if (!product) return;
 
     if (product.available_colors?.length && !selectedColor) {
@@ -122,8 +123,21 @@ export function ProductDetail() {
     }
 
     cartStore.clearCart();
-    cartStore.addItem(product, 1, selectedColor);
+    cartStore.addItem(product, qty, selectedColor);
     navigate('/checkout');
+  };
+
+  // Calcular precio con descuento si hay una promoción activa
+  const getDiscountedPrice = () => {
+    if (!product || !activePromotion) return null;
+    
+    // Si la promoción tiene un precio total específico, usarlo
+    if (activePromotion.total_price) {
+      return activePromotion.total_price;
+    }
+    
+    // Si no, calcular un descuento del 20%
+    return (product.price * 0.8).toFixed(2);
   };
 
   if (loading) {
@@ -229,9 +243,9 @@ export function ProductDetail() {
                     ) : (
                       <div className="flex flex-col">
                         <div className="flex items-center">
-                          <p className="text-xl text-gray-500 line-through mr-2">${product.price}</p>
+                          <p className="text-2xl text-gray-500 line-through mr-2">${product.price}</p>
                           <p className="text-3xl font-bold text-red-600">
-                            ${activePromotion.total_price ? activePromotion.total_price : (product.price * 0.8).toFixed(2)}
+                            ${getDiscountedPrice()}
                           </p>
                         </div>
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
@@ -307,23 +321,57 @@ export function ProductDetail() {
               </div>
             </div>
 
-            <div className="mt-10 flex sm:flex-col1">
-              <button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0}
-                className="max-w-xs flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 sm:w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Agregar al carrito
-              </button>
+            <div className="mt-10 flex flex-col space-y-4">
+              <div className="flex items-center">
+                <label htmlFor="quantity" className="mr-3 text-sm font-medium text-gray-700">
+                  Cantidad:
+                </label>
+                <div className="flex items-center border border-gray-300 rounded-md">
+                  <button
+                    type="button"
+                    className="px-3 py-1 text-gray-600 hover:text-gray-900 focus:outline-none"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    min="1"
+                    max={product.stock}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.min(product.stock, Math.max(1, parseInt(e.target.value) || 1)))}
+                    className="w-12 text-center border-0 focus:ring-0"
+                  />
+                  <button
+                    type="button"
+                    className="px-3 py-1 text-gray-600 hover:text-gray-900 focus:outline-none"
+                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              
+              <div className="flex sm:flex-row gap-4">
+                <button
+                  onClick={() => handleAddToCart(quantity)}
+                  disabled={product.stock === 0}
+                  className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Agregar al carrito
+                </button>
 
-              <button
-                onClick={handleBuyNow}
-                disabled={product.stock === 0}
-                className="max-w-xs flex-1 ml-4 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 sm:w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Comprar ahora
-              </button>
+                <button
+                  onClick={() => handleBuyNow(quantity)}
+                  disabled={product.stock === 0}
+                  className="flex-1 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Comprar ahora
+                </button>
+              </div>
             </div>
 
             {product.category && (

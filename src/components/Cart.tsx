@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Minus, Plus, ShoppingBag } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, Tag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { Link } from 'react-router-dom';
 
@@ -7,6 +7,25 @@ export function Cart() {
   const cartStore = useCartStore();
 
   if (!cartStore.isOpen) return null;
+
+  // Función para encontrar promociones aplicadas a un producto
+  const findPromotion = (productId: string) => {
+    return cartStore.promotionsApplied.find(p => p.productId === productId);
+  };
+
+  // Función para mostrar el tipo de promoción
+  const getPromotionLabel = (type: string) => {
+    switch (type) {
+      case '2x1': return 'Compra 2, paga 1';
+      case '3x1': return 'Compra 3, paga 1';
+      case '3x2': return 'Compra 3, paga 2';
+      case 'discount': return '20% de descuento';
+      default: return 'Promoción especial';
+    }
+  };
+
+  // Calcular el total de descuentos
+  const totalDiscount = cartStore.promotionsApplied.reduce((sum, promo) => sum + promo.discount, 0);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -38,47 +57,87 @@ export function Cart() {
           ) : (
             <>
               <div className="flex-1 overflow-y-auto px-4 py-6">
-                {cartStore.items.map((item) => (
-                  <div key={item.product.id} className="flex py-6">
-                    <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border">
-                      <img
-                        src={item.product.images[0]}
-                        alt={item.product.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="ml-4 flex flex-1 flex-col">
-                      <div className="flex justify-between text-base font-medium text-gray-900">
-                        <h3>{item.product.name}</h3>
-                        <p className="ml-4">${item.product.price}</p>
+                {cartStore.items.map((item) => {
+                  const promotion = findPromotion(item.product.id);
+                  return (
+                    <div key={item.product.id} className="flex py-6">
+                      <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border">
+                        <img
+                          src={item.product.images[0]}
+                          alt={item.product.name}
+                          className="h-full w-full object-cover"
+                        />
                       </div>
-                      <div className="flex items-center mt-2">
-                        <button
-                          onClick={() => cartStore.updateQuantity(item.product.id, item.quantity - 1)}
-                          className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="mx-2 text-gray-600">{item.quantity}</span>
-                        <button
-                          onClick={() => cartStore.updateQuantity(item.product.id, item.quantity + 1)}
-                          className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => cartStore.removeItem(item.product.id)}
-                          className="ml-4 text-indigo-600 hover:text-indigo-500"
-                        >
-                          Eliminar
-                        </button>
+                      <div className="ml-4 flex flex-1 flex-col">
+                        <div className="flex justify-between text-base font-medium text-gray-900">
+                          <h3>{item.product.name}</h3>
+                          <div className="text-right">
+                            {promotion ? (
+                              <>
+                                {promotion.type === 'discount' ? (
+                                  <>
+                                    <p className="text-sm text-gray-500 line-through">${item.product.price}</p>
+                                    <p className="text-red-600">${(item.product.price * 0.8).toFixed(2)}</p>
+                                  </>
+                                ) : (
+                                  <p>${item.product.price}</p>
+                                )}
+                              </>
+                            ) : (
+                              <p>${item.product.price}</p>
+                            )}
+                          </div>
+                        </div>
+                        {promotion && (
+                          <div className="mt-1 flex items-center">
+                            <Tag className="h-3 w-3 text-red-600 mr-1" />
+                            <span className="text-xs text-red-600 font-medium">
+                              {getPromotionLabel(promotion.type)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center mt-2">
+                          <button
+                            onClick={() => cartStore.updateQuantity(item.product.id, item.quantity - 1)}
+                            className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <span className="mx-2 text-gray-600">{item.quantity}</span>
+                          <button
+                            onClick={() => cartStore.updateQuantity(item.product.id, item.quantity + 1)}
+                            className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => cartStore.removeItem(item.product.id)}
+                            className="ml-4 text-indigo-600 hover:text-indigo-500"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-gray-200 px-4 py-6">
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between text-sm mb-2">
+                    <p className="text-gray-600">Subtotal</p>
+                    <p className="text-gray-600">${(cartStore.total + totalDiscount).toFixed(2)}</p>
+                  </div>
+                )}
+                
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between text-sm mb-2 text-red-600">
+                    <p>Descuento por promociones</p>
+                    <p>-${totalDiscount.toFixed(2)}</p>
+                  </div>
+                )}
+                
                 <div className="flex justify-between text-base font-medium text-gray-900">
                   <p>Total</p>
                   <p>${cartStore.total.toFixed(2)}</p>
