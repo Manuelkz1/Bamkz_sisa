@@ -22,13 +22,15 @@ import {
   Link as LinkIcon,
   Eye,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Tag
 } from 'lucide-react';
 import { CompanySettings } from './CompanySettings';
+import { PromotionManager } from './PromotionManager';
 import type { Product, Order, User } from '../types';
 import { format } from 'date-fns';
 
-type Tab = 'products' | 'orders' | 'users' | 'settings';
+type Tab = 'products' | 'orders' | 'users' | 'settings' | 'promotions';
 
 const ORDER_STATUS_MAP = {
   pending: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800' },
@@ -83,6 +85,10 @@ export function AdminPanel() {
         break;
       case 'users':
         loadUsers();
+        break;
+      case 'promotions':
+        // No necesita cargar datos aquí ya que PromotionManager maneja su propia carga
+        setLoading(false);
         break;
     }
   }, [activeTab]);
@@ -670,6 +676,17 @@ export function AdminPanel() {
                 Usuarios
               </button>
               <button
+                onClick={() => setActiveTab('promotions')}
+                className={`${
+                  activeTab === 'promotions'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
+              >
+                <Tag className="h-5 w-5 mr-2" />
+                Promociones
+              </button>
+              <button
                 onClick={() => setActiveTab('settings')}
                 className={`${
                   activeTab === 'settings'
@@ -1169,6 +1186,8 @@ export function AdminPanel() {
             )}
 
             {activeTab === 'settings' && <CompanySettings />}
+            
+            {activeTab === 'promotions' && <PromotionManager />}
           </div>
         </div>
       </div>
