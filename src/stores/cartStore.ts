@@ -285,8 +285,21 @@ export const useCartStore = create<CartStore>()(
             default:
               // Promoción de precio especial o descuento
               if (promotion.type === 'discount') {
-                // Aplicar descuento del 20%
-                const discountedPrice = item.product.price * 0.8;
+                // Obtener el porcentaje de descuento de la promoción
+                const { data: promotionData, error: promotionError } = await supabase
+                  .from('promotions')
+                  .select('discount_percent')
+                  .eq('id', promotionId)
+                  .single();
+                
+                let discountPercent = 20; // Valor predeterminado
+                if (!promotionError && promotionData && promotionData.discount_percent) {
+                  discountPercent = promotionData.discount_percent;
+                }
+                
+                // Aplicar el porcentaje de descuento configurado
+                const discountMultiplier = (100 - discountPercent) / 100;
+                const discountedPrice = item.product.price * discountMultiplier;
                 total += discountedPrice * item.quantity;
                 
                 // Actualizar el descuento aplicado

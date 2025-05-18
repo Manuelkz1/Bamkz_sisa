@@ -13,7 +13,8 @@ import {
   ToggleRight,
   Save,
   ArrowLeft,
-  Search
+  Search,
+  Percent
 } from 'lucide-react';
 import type { Product, Promotion } from '../types';
 import { format } from 'date-fns';
@@ -29,10 +30,11 @@ export function PromotionManager() {
 
   const [promotionForm, setPromotionForm] = useState({
     name: '',
-    type: '2x1' as '2x1' | '3x1' | '3x2',
+    type: '2x1' as '2x1' | '3x1' | '3x2' | 'discount',
     buy_quantity: 2,
     get_quantity: 1,
     total_price: '',
+    discount_percent: 20, // Porcentaje de descuento predeterminado (20%)
     is_active: true,
     start_date: '',
     end_date: '',
@@ -92,7 +94,7 @@ export function PromotionManager() {
     }
   };
 
-  const handleEditPromotion = (promotion: Promotion) => {
+  const handleEditP  const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     
     // Extraer IDs de productos asociados
@@ -104,6 +106,7 @@ export function PromotionManager() {
       buy_quantity: promotion.buy_quantity,
       get_quantity: promotion.get_quantity,
       total_price: promotion.total_price?.toString() || '',
+      discount_percent: promotion.discount_percent || 20,
       is_active: promotion.is_active,
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
@@ -112,9 +115,11 @@ export function PromotionManager() {
     
     setSelectedProducts(productIds);
     setShowPromotionModal(true);
+  };;
+    setShowPromotionModal(true);
   };
 
-  const handleNewPromotion = () => {
+  const handle  const handleNewPromotion = () => {
     setEditingPromotion(null);
     setPromotionForm({
       name: '',
@@ -122,6 +127,7 @@ export function PromotionManager() {
       buy_quantity: 2,
       get_quantity: 1,
       total_price: '',
+      discount_percent: 20,
       is_active: true,
       start_date: '',
       end_date: '',
@@ -129,9 +135,8 @@ export function PromotionManager() {
     });
     setSelectedProducts([]);
     setShowPromotionModal(true);
-  };
-
-  const handlePromotionSubmit = async (e: React.FormEvent) => {
+  };al(true);
+  };  const handlePromotionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
@@ -153,8 +158,11 @@ export function PromotionManager() {
         buy_quantity: parseInt(promotionForm.buy_quantity.toString()),
         get_quantity: parseInt(promotionForm.get_quantity.toString()),
         total_price: promotionForm.total_price ? parseFloat(promotionForm.total_price) : null,
+        discount_percent: promotionForm.type === 'discount' ? promotionForm.discount_percent : null,
         is_active: promotionForm.is_active,
         start_date: promotionForm.start_date || null,
+        end_date: promotionForm.end_date || null,
+      };tart_date: promotionForm.start_date || null,
         end_date: promotionForm.end_date || null,
       };
 
@@ -268,17 +276,22 @@ export function PromotionManager() {
   const filteredProducts = products.filter(product => 
     product.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getPromotionTypeLabel = (type: string) => {
+  const getPromotionTypeLabel = (type: string, promotion: any = null) => {
     switch (type) {
       case '2x1': return 'Compra 2, paga 1';
       case '3x1': return 'Compra 3, paga 1';
       case '3x2': return 'Compra 3, paga 2';
+      case 'discount': 
+        const percent = promotion?.discount_percent || 20;
+        return `${percent}% de descuento`;
+      default: return type;
+    }
+  };otion.discount_percent || 20}% de descuento`;
       default: return type;
     }
   };
 
-  const updateBuyGetQuantities = (type: '2x1' | '3x1' | '3x2') => {
+    const updateBuyGetQuantities = (type: '2x1' | '3x1' | '3x2' | 'discount') => {
     switch (type) {
       case '2x1':
         setPromotionForm(prev => ({ ...prev, buy_quantity: 2, get_quantity: 1 }));
@@ -288,6 +301,14 @@ export function PromotionManager() {
         break;
       case '3x2':
         setPromotionForm(prev => ({ ...prev, buy_quantity: 3, get_quantity: 2 }));
+        break;
+      case 'discount':
+        // No necesitamos actualizar buy_quantity y get_quantity para descuentos
+        break;
+    }
+  };
+      case 'discount':
+        // No necesitamos actualizar buy_quantity y get_quantity para descuentos
         break;
     }
   };
@@ -349,7 +370,9 @@ export function PromotionManager() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                      {getPromotionTypeLabel(promotion.type)}
+                      {promotion.type === 'discount' 
+                        ? `${promotion.discount_percent || 20}% de descuento` 
+                        : getPromotionTypeLabel(promotion.type)}
                     </span>
                     {promotion.total_price && (
                       <div className="text-xs text-gray-500 mt-1">
@@ -450,159 +473,275 @@ export function PromotionManager() {
                 <div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nombre de la promoción
+                      Nombre de la Promoción
                     </label>
                     <input
                       type="text"
                       value={promotionForm.name}
                       onChange={(e) => setPromotionForm({ ...promotionForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="Ej: Oferta de Verano 2x1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Ej: Oferta de Verano"
                     />
                   </div>
-                  
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tipo de promoción
+                      Tipo de Promoción
                     </label>
-                    <select
-                      value={promotionForm.type}
-                      onChange={(e) => {
-                        const type = e.target.value as '2x1' | '3x1' | '3x2';
-                        setPromotionForm({ ...promotionForm, type });
-                        updateBuyGetQuantities(type);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    >
-                      <option value="2x1">2x1 (Compra 2, paga 1)</option>
-                      <option value="3x1">3x1 (Compra 3, paga 1)</option>
-                      <option value="3x2">3x2 (Compra 3, paga 2)</option>
-                    </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromotionForm({ ...promotionForm, type: '2x1' });
+                          updateBuyGetQuantities('2x1');
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                          promotionForm.type === '2x1'
+                            <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tipo de Promoción
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromotionForm({ ...promotionForm, type: '2x1' });
+                          updateBuyGetQuantities('2x1');
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                          promotionForm.type === '2x1'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        2x1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromotionForm({ ...promotionForm, type: '3x1' });
+                          updateBuyGetQuantities('3x1');
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                          promotionForm.type === '3x1'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        3x1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromotionForm({ ...promotionForm, type: '3x2' });
+                          updateBuyGetQuantities('3x2');
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                          promotionForm.type === '3x2'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        3x2
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromotionForm({ ...promotionForm, type: 'discount' });
+                          updateBuyGetQuantities('discount');
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md ${
+                          promotionForm.type === 'discount'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        Descuento
+                      </button>
+                    </div>
                   </div>
-                  
+
+                  {promotionForm.type === 'discount' ? (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Porcentaje de Descuento
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          value={promotionForm.discount_percent}
+                          onChange={(e) => setPromotionForm({ 
+                            ...promotionForm, 
+                            discount_percent: parseInt(e.target.value) || 20 
+                          })}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <span className="ml-2 text-gray-700">%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Precio Total Especial (opcional)
+                      </label>
+                      <div className="flex items-center">
+                        <span className="mr-2 text-gray-700">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={promotionForm.total_price}
+                          onChange={(e) => setPromotionForm({ ...promotionForm, total_price: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="Dejar en blanco para usar precio normal"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Si se establece, este precio reemplazará el cálculo automático de la promoción.
+                      </p>
+                    </div>
+                  )        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Precio Total Especial (opcional)
+                      </label>
+                      <div className="flex items-center">
+                        <span className="mr-2 text-gray-700">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={promotionForm.total_price}
+                          onChange={(e) => setPromotionForm({ ...promotionForm, total_price: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          placeholder="Dejar en blanco para usar precio normal"
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Si se establece, este precio reemplazará el cálculo automático de la promoción.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Precio total (opcional)
+                      Fechas de la Promoción
                     </label>
-                    <input
-                      type="number"
-                      value={promotionForm.total_price}
-                      onChange={(e) => setPromotionForm({ ...promotionForm, total_price: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="Precio total para la promoción"
-                      step="0.01"
-                      min="0"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Si se establece, este precio reemplazará el cálculo automático basado en cantidades
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Fecha de inicio</label>
+                        <input
+                          type="date"
+                          value={promotionForm.start_date}
+                          onChange={(e) => setPromotionForm({ ...promotionForm, start_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Fecha de fin</label>
+                        <input
+                          type="date"
+                          value={promotionForm.end_date}
+                          onChange={(e) => setPromotionForm({ ...promotionForm, end_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Dejar en blanco para que la promoción no tenga límite de tiempo.
                     </p>
                   </div>
-                  
-                  <div className="mb-4 grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Fecha de inicio (opcional)
-                      </label>
-                      <input
-                        type="date"
-                        value={promotionForm.start_date}
-                        onChange={(e) => setPromotionForm({ ...promotionForm, start_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Fecha de fin (opcional)
-                      </label>
-                      <input
-                        type="date"
-                        value={promotionForm.end_date}
-                        onChange={(e) => setPromotionForm({ ...promotionForm, end_date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      />
-                    </div>
-                  </div>
-                  
+
                   <div className="mb-4">
-                    <label className="flex items-center">
+                    <div className="flex items-center">
                       <input
                         type="checkbox"
+                        id="is_active"
                         checked={promotionForm.is_active}
                         onChange={(e) => setPromotionForm({ ...promotionForm, is_active: e.target.checked })}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Promoción activa</span>
-                    </label>
+                      <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                        Promoción activa
+                      </label>
+                    </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Productos en promoción
+                      Productos Incluidos en la Promoción
                     </label>
-                    <div className="border border-gray-300 rounded-md overflow-hidden">
-                      <div className="p-2 bg-gray-50 border-b border-gray-300">
-                        <div className="flex items-center">
-                          <Search size={16} className="text-gray-400 mr-2" />
-                          <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full border-none focus:ring-0 text-sm"
-                            placeholder="Buscar productos..."
-                          />
-                        </div>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto p-2">
-                        {filteredProducts.length === 0 ? (
-                          <p className="text-center text-gray-500 py-4">No se encontraron productos</p>
-                        ) : (
-                          filteredProducts.map((product) => (
-                            <div key={product.id} className="flex items-center py-2 border-b border-gray-100 last:border-b-0">
-                              <input
-                                type="checkbox"
-                                id={`product-${product.id}`}
-                                checked={selectedProducts.includes(product.id)}
-                                onChange={() => handleProductSelection(product.id)}
-                                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                              />
-                              <label htmlFor={`product-${product.id}`} className="ml-2 flex items-center cursor-pointer">
-                                {product.images && product.images.length > 0 && (
-                                  <img
-                                    src={product.images[0]}
-                                    alt={product.name}
-                                    className="w-10 h-10 object-cover rounded mr-2"
-                                  />
-                                )}
-                                <div>
-                                  <div className="text-sm font-medium">{product.name}</div>
-                                  <div className="text-xs text-gray-500">${product.price}</div>
-                                </div>
-                              </label>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                      <div className="p-2 bg-gray-50 border-t border-gray-300 text-sm">
-                        {selectedProducts.length} productos seleccionados
-                      </div>
+                    <div className="flex items-center mb-2">
+                      <Search size={18} className="text-gray-400 mr-2" />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Buscar productos..."
+                      />
                     </div>
+                    <div className="border border-gray-300 rounded-md h-64 overflow-y-auto">
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500">
+                          No se encontraron productos
+                        </div>
+                      ) : (
+                        <ul className="divide-y divide-gray-200">
+                          {filteredProducts.map((product) => (
+                            <li key={product.id} className="p-2 hover:bg-gray-50">
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  id={`product-${product.id}`}
+                                  checked={selectedProducts.includes(product.id)}
+                                  onChange={() => handleProductSelection(product.id)}
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                />
+                                <label
+                                  htmlFor={`product-${product.id}`}
+                                  className="ml-2 flex items-center cursor-pointer"
+                                >
+                                  {product.images && product.images.length > 0 && (
+                                    <img
+                                      src={product.images[0]}
+                                      alt={product.name}
+                                      className="h-10 w-10 object-cover rounded-md mr-2"
+                                    />
+                                  )}
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {product.name}
+                                    </div>
+                                    <div className="text-xs text-gray-500">${product.price}</div>
+                                  </div>
+                                </label>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Seleccionados: {selectedProducts.length} productos
+                    </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="mt-6 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setShowPromotionModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700"
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   {editingPromotion ? 'Actualizar Promoción' : 'Crear Promoción'}
                 </button>

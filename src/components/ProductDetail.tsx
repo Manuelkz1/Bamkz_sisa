@@ -136,8 +136,35 @@ export function ProductDetail() {
       return activePromotion.total_price;
     }
     
-    // Si no, calcular un descuento del 20%
-    return (product.price * 0.8).toFixed(2);
+    // Si es una promoción de descuento, aplicar el porcentaje
+    if (activePromotion.type === 'discount') {
+      const discountPercent = activePromotion.discount_percent || 20;
+      const discountMultiplier = (100 - discountPercent) / 100;
+      return (product.price * discountMultiplier).toFixed(2);
+    }
+    
+    // Para promociones tipo 2x1, 3x1, 3x2
+    if (['2x1', '3x1', '3x2'].includes(activePromotion.type)) {
+      // Solo aplicar la promoción si la cantidad seleccionada es suficiente
+      if (quantity >= activePromotion.buy_quantity) {
+        const fullPriceSets = Math.floor(quantity / activePromotion.buy_quantity);
+        const remainder = quantity % activePromotion.buy_quantity;
+        
+        // Calcular cuántos productos se pagan realmente
+        const paidItems = (fullPriceSets * activePromotion.get_quantity) + remainder;
+        
+        return (paidItems * product.price).toFixed(2);
+      }
+    }
+    
+    // Si no aplica ninguna promoción o la cantidad no es suficiente
+    return (quantity * product.price).toFixed(2);
+  };
+  
+  // Calcular el precio regular (sin promoción)
+  const getRegularPrice = () => {
+    if (!product) return null;
+    return (quantity * product.price).toFixed(2);
   };
 
   if (loading) {
@@ -230,33 +257,52 @@ export function ProductDetail() {
               <div className="flex items-center">
                 {activePromotion ? (
                   <>
-                    {activePromotion.type === '2x1' || activePromotion.type === '3x1' || activePromotion.type === '3x2' ? (
-                      <div className="flex flex-col">
-                        <p className="text-3xl text-gray-900">${product.price}</p>
-                        <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                          <Tag className="h-4 w-4 mr-1" />
-                          {activePromotion.type === '2x1' && 'Compra 2, paga 1'}
-                          {activePromotion.type === '3x1' && 'Compra 3, paga 1'}
-                          {activePromotion.type === '3x2' && 'Compra 3, paga 2'}
-                        </div>
-                      </div>
-                    ) : (
+                    {activePromotion.type === 'discount' ? (
                       <div className="flex flex-col">
                         <div className="flex items-center">
-                          <p className="text-2xl text-gray-500 line-through mr-2">${product.price}</p>
+                          <p className="text-2xl text-gray-500 line-through mr-2">${getRegularPrice()}</p>
                           <p className="text-3xl font-bold text-red-600">
                             ${getDiscountedPrice()}
                           </p>
                         </div>
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
                           <Tag className="h-4 w-4 mr-1" />
-                          {activePromotion.total_price ? 'Precio especial' : '20% de descuento'}
+                          {activePromotion.discount_percent || 20}% de descuento
                         </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col">
+                        {quantity >= activePromotion.buy_quantity ? (
+                          <>
+                            <div className="flex items-center">
+                              <p className="text-2xl text-gray-500 line-through mr-2">${getRegularPrice()}</p>
+                              <p className="text-3xl font-bold text-red-600">
+                                ${getDiscountedPrice()}
+                              </p>
+                            </div>
+                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                              <Tag className="h-4 w-4 mr-1" />
+                              {activePromotion.type === '2x1' && 'Compra 2, paga 1'}
+                              {activePromotion.type === '3x1' && 'Compra 3, paga 1'}
+                              {activePromotion.type === '3x2' && 'Compra 3, paga 2'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
+                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                              <Tag className="h-4 w-4 mr-1" />
+                              {activePromotion.type === '2x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
+                              {activePromotion.type === '3x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
+                              {activePromotion.type === '3x2' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </>
                 ) : (
-                  <p className="text-3xl text-gray-900">${product.price}</p>
+                  <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
                 )}
               </div>
             </div>
