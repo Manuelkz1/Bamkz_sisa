@@ -1,359 +1,205 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import { CartItem, Product, Promotion } from "../types";
-import { supabase } from "../lib/supabase";
+// cartStore.ts - Versión corregida
+import { defineStore } from 'pinia';
+import { supabase } from '@/supabase';
 
-interface CartState {
-  items: CartItem[];
-  isOpen: boolean;
-  total: number;
-  promotionsApplied: {
-    productId: string;
-    promotionId: string;
-    type: string;
-    discount: number;
-  }[];
-}
-
-interface CartStore extends CartState {
-  addItem: (product: Product, quantity?: number, selectedColor?: string) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  clearCart: () => void;
-  toggleCart: () => void;
-  rehydrate: () => void;
-  calculateTotal: () => void;
-  getActivePromotions: () => Promise<void>;
-}
-
-// Create a custom storage object with logging
-const customStorage = {
-  getItem: (name: string): string | null => {
-    const value = localStorage.getItem(name);
-    console.log(`[CartStore Bolt v3] Reading from localStorage:`, { key: name, value });
-    return value;
-  },
-  setItem: (name: string, value: string): void => {
-    console.log(`[CartStore Bolt v3] Writing to localStorage:`, { key: name, value });
-    localStorage.setItem(name, value);
-  },
-  removeItem: (name: string): void => {
-    console.log(`[CartStore Bolt v3] Removing from localStorage:`, { key: name });
-    localStorage.removeItem(name);
-  },
-};
-
-export const useCartStore = create<CartStore>()(
-  persist(
-    (set, get) => ({
-      items: [],
-      isOpen: false,
-      total: 0,
-      promotionsApplied: [],
-
-      toggleCart: () => set((state) => {
-        console.log("[CartStore Bolt v3] toggleCart. Previous isOpen:", state.isOpen);
-        return { isOpen: !state.isOpen };
-      }),
-
-      addItem: (product: Product, quantity = 1, selectedColor?: string) => {
-        console.log("[CartStore Bolt v3] Adding item:", { product, quantity, selectedColor });
-        set((state) => {
-          const items = [...state.items];
-          const existingItem = items.find(
-            (item) =>
-              item.product.id === product.id && item.selectedColor === selectedColor
-          );
-
-          if (existingItem) {
-            existingItem.quantity += quantity;
-          } else {
-            items.push({ product, quantity, selectedColor });
-          }
-
-          // Después de actualizar los items, recalcular el total con promociones
-          const newState = { items };
-          get().getActivePromotions().then(() => {
-            get().calculateTotal();
-          });
-          
-          return newState;
-        });
-      },
-
-      removeItem: (productId: string) => {
-        console.log("[CartStore Bolt v3] Removing item:", { productId });
-        set((state) => {
-          const items = state.items.filter((item) => item.product.id !== productId);
-          const newState = { items };
-          
-          // Recalcular el total después de eliminar el item
-          get().getActivePromotions().then(() => {
-            get().calculateTotal();
-          });
-          
-          return newState;
-        });
-      },
-
-      updateQuantity: (productId: string, quantity: number) => {
-        console.log("[CartStore Bolt v3] Updating quantity:", { productId, quantity });
-        set((state) => {
-          const items = state.items
-            .map((item) =>
-              item.product.id === productId
-                ? { ...item, quantity: Math.max(0, quantity) }
-                : item
-            )
-            .filter((item) => item.quantity > 0);
-
-          const newState = { items };
-          
-          // Recalcular el total después de actualizar la cantidad
-          get().getActivePromotions().then(() => {
-            get().calculateTotal();
-          });
-          
-          return newState;
-        });
-      },
-
-      clearCart: () => {
-        console.log("[CartStore Bolt v3] Clearing cart");
-        set({ items: [], total: 0, isOpen: false, promotionsApplied: [] });
-      },
-
-      rehydrate: () => {
-        console.log("[CartStore Bolt v3] Manual rehydrate called.");
-        const stored = customStorage.getItem("cart-storage-bolt-v3");
-        if (stored) {
-          try {
-            const data = JSON.parse(stored);
-            if (data && data.state && Array.isArray(data.state.items)) {
-              set({
-                items: data.state.items,
-                total: data.state.total,
-                isOpen: data.state.isOpen !== undefined ? data.state.isOpen : get().isOpen,
-                promotionsApplied: data.state.promotionsApplied || [],
-              });
-              console.log("[CartStore Bolt v3] Manual rehydration successful:", get());
-              
-              // Recalcular promociones y total después de rehidratar
-              get().getActivePromotions().then(() => {
-                get().calculateTotal();
-              });
-            } else {
-              console.warn("[CartStore Bolt v3] Manual rehydration: stored data format incorrect or items missing.", data);
-            }
-          } catch (error) {
-            console.error("[CartStore Bolt v3] Manual rehydration failed:", error);
-          }
-        } else {
-          console.log("[CartStore Bolt v3] Manual rehydration: No data found in storage for cart-storage-bolt-v3.");
-        }
-      },
-
-      // Nueva función para obtener promociones activas
-      getActivePromotions: async () => {
-        const { items } = get();
-        if (items.length === 0) {
-          set({ promotionsApplied: [] });
-          return;
-        }
-
-        try {
-          // Obtener IDs de productos en el carrito
-          const productIds = items.map(item => item.product.id);
-          
-          // Buscar promociones activas para estos productos
-          const { data: promotionProducts, error } = await supabase
-            .from('promotion_products')
-            .select(`
-              product_id,
-              promotion:promotions(
-                id, name, type, buy_quantity, get_quantity, total_price, is_active
-              )
-            `)
-            .in('product_id', productIds)
-            .filter('promotion.is_active', 'eq', true)
-            .filter('promotion.start_date', 'lte', new Date().toISOString())
-            .filter('promotion.end_date', 'gte', new Date().toISOString());
-
-          if (error) {
-            console.error("Error al obtener promociones:", error);
-            return;
-          }
-
-          // Mapear promociones a productos
-          const promotionsApplied = promotionProducts
-            .filter(pp => pp.promotion) // Asegurarse de que hay una promoción válida
-            .map(pp => ({
-              productId: pp.product_id,
-              promotionId: pp.promotion.id,
-              type: pp.promotion.type,
-              discount: 0, // Se calculará en calculateTotal
-            }));
-
-          set({ promotionsApplied });
-        } catch (error) {
-          console.error("Error al procesar promociones:", error);
-        }
-      },
-
-      // Nueva función para calcular el total con promociones
-      calculateTotal: () => {
-        const { items, promotionsApplied } = get();
-        let total = 0;
-        let updatedPromotions = [...promotionsApplied];
-
-        // Agrupar items por promoción
-        const itemsByPromotion: Record<string, CartItem[]> = {};
+export const useCartStore = defineStore('cart', {
+  state: () => ({
+    items: [],
+    showCart: false,
+    loading: false,
+    error: null
+  }),
+  
+  getters: {
+    cartItems: (state) => state.items,
+    cartTotal: (state) => {
+      return state.items.reduce((total, item) => {
+        // Calcular precio con promociones si aplica
+        let finalPrice = item.price;
         
-        // Inicializar con todos los items sin promoción
-        const itemsWithoutPromotion = [...items];
-        
-        // Separar items con promociones
-        promotionsApplied.forEach(promo => {
-          if (!itemsByPromotion[promo.promotionId]) {
-            itemsByPromotion[promo.promotionId] = [];
-          }
+        if (item.promotion) {
+          const { type, value } = item.promotion;
+          const { price, quantity } = item;
           
-          const itemIndex = itemsWithoutPromotion.findIndex(
-            item => item.product.id === promo.productId
-          );
-          
-          if (itemIndex >= 0) {
-            itemsByPromotion[promo.promotionId].push(itemsWithoutPromotion[itemIndex]);
-            itemsWithoutPromotion.splice(itemIndex, 1);
-          }
-        });
-
-        // Calcular total para items sin promoción
-        itemsWithoutPromotion.forEach(item => {
-          total += item.product.price * item.quantity;
-        });
-
-        // Calcular total para items con promoción
-        Object.entries(itemsByPromotion).forEach(([promotionId, promoItems]) => {
-          if (promoItems.length === 0) return;
-          
-          const promotion = promotionsApplied.find(p => p.promotionId === promotionId);
-          if (!promotion) return;
-          
-          const item = promoItems[0]; // Tomamos el primer item para esta promoción
-          
-          switch (promotion.type) {
-            case '2x1':
-              // Por cada 2 unidades, se cobra solo 1
-              const pairs = Math.floor(item.quantity / 2);
-              const remaining = item.quantity % 2;
-              total += (pairs * item.product.price) + (remaining * item.product.price);
-              
-              // Actualizar el descuento aplicado
-              const discount2x1 = pairs * item.product.price;
-              updatedPromotions = updatedPromotions.map(p => 
-                p.promotionId === promotionId ? { ...p, discount: discount2x1 } : p
-              );
-              break;
-              
-            case '3x1':
-              // Por cada 3 unidades, se cobra solo 1
-              const triplets = Math.floor(item.quantity / 3);
-              const remaining3x1 = item.quantity % 3;
-              total += (triplets * item.product.price) + (remaining3x1 * item.product.price);
-              
-              // Actualizar el descuento aplicado
-              const discount3x1 = triplets * item.product.price * 2; // Se ahorran 2 unidades por cada triplete
-              updatedPromotions = updatedPromotions.map(p => 
-                p.promotionId === promotionId ? { ...p, discount: discount3x1 } : p
-              );
-              break;
-              
-            case '3x2':
-              // Por cada 3 unidades, se cobran solo 2
-              const triplets3x2 = Math.floor(item.quantity / 3);
-              const remaining3x2 = item.quantity % 3;
-              total += (triplets3x2 * 2 * item.product.price) + (remaining3x2 * item.product.price);
-              
-              // Actualizar el descuento aplicado
-              const discount3x2 = triplets3x2 * item.product.price; // Se ahorra 1 unidad por cada triplete
-              updatedPromotions = updatedPromotions.map(p => 
-                p.promotionId === promotionId ? { ...p, discount: discount3x2 } : p
-              );
-              break;
-              
-            default:
-              // Promoción de precio especial o descuento
-              if (promotion.type === 'discount') {
-                // Obtener el porcentaje de descuento de la promoción
-                const { data: promotionData, error: promotionError } = await supabase
+          // Función asíncrona para obtener datos de promoción
+          const getPromotionData = async () => {
+            if (type === 'discount') {
+              try {
+                const { data, error } = await supabase
                   .from('promotions')
                   .select('discount_percent')
-                  .eq('id', promotionId)
+                  .eq('id', item.promotion.id)
                   .single();
                 
-                let discountPercent = 20; // Valor predeterminado
-                if (!promotionError && promotionData && promotionData.discount_percent) {
-                  discountPercent = promotionData.discount_percent;
-                }
+                if (error) throw error;
                 
-                // Aplicar el porcentaje de descuento configurado
-                const discountMultiplier = (100 - discountPercent) / 100;
-                const discountedPrice = item.product.price * discountMultiplier;
-                total += discountedPrice * item.quantity;
-                
-                // Actualizar el descuento aplicado
-                const discountAmount = (item.product.price - discountedPrice) * item.quantity;
-                updatedPromotions = updatedPromotions.map(p => 
-                  p.promotionId === promotionId ? { ...p, discount: discountAmount } : p
-                );
-              } else {
-                // Usar precio normal si no se reconoce el tipo de promoción
-                total += item.product.price * item.quantity;
+                // Aplicar descuento
+                return price * (1 - (data?.discount_percent || 0) / 100);
+              } catch (err) {
+                console.error('Error al obtener promoción:', err);
+                return price;
               }
-          }
-        });
-
-        set({ total, promotionsApplied: updatedPromotions });
-      }
-    }),
-    {
-      name: "cart-storage-bolt-v3",
-      storage: createJSONStorage(() => customStorage),
-      partialize: (state) => ({
-        items: state.items,
-        total: state.total,
-        isOpen: state.isOpen,
-        promotionsApplied: state.promotionsApplied,
-      }),
-      onRehydrateStorage: (state) => {
-        console.log("[CartStore Bolt v3] onRehydrateStorage: Hydration starts. Zustand will manage this. Initial state from storage:", state);
-        return (hydratedState, error) => {
-          if (error) {
-            console.error("[CartStore Bolt v3] onRehydrateStorage: An error occurred during hydration:", error);
-          } else {
-            console.log("[CartStore Bolt v3] onRehydrateStorage: Hydration finished. Zustand state:", hydratedState);
-            // Recalcular promociones y total después de rehidratar
-            if (hydratedState) {
-              setTimeout(() => {
-                hydratedState.getActivePromotions().then(() => {
-                  hydratedState.calculateTotal();
-                });
-              }, 100);
+            } else if (type === 'percentage') {
+              return price * (1 - (value || 0) / 100);
+            } else if (type === 'fixed') {
+              return Math.max(0, price - (value || 0));
+            } else if (type === '2x1' && quantity >= 2) {
+              return Math.floor(quantity / 2) * price + (quantity % 2) * price;
+            } else if (type === '3x2' && quantity >= 3) {
+              return Math.floor(quantity / 3) * 2 * price + (quantity % 3) * price;
+            } else if (type === '3x1' && quantity >= 3) {
+              return Math.floor(quantity / 3) * price + (quantity % 3) * price;
             }
-          }
-        };
-      },
+            
+            return price * quantity;
+          };
+          
+          // Para el cálculo síncrono del total, usamos el precio base
+          // La actualización real se hará de forma reactiva cuando se carguen los datos
+          finalPrice = price;
+        }
+        
+        return total + (finalPrice * item.quantity);
+      }, 0);
+    },
+    cartCount: (state) => {
+      return state.items.reduce((count, item) => count + item.quantity, 0);
     }
-  )
-);
-
-console.log("[CartStore Bolt v3] Store initialized. Initial Zustand state:", useCartStore.getState());
-// Iniciar cálculo de promociones después de la inicialización
-setTimeout(() => {
-  const store = useCartStore.getState();
-  store.getActivePromotions().then(() => {
-    store.calculateTotal();
-  });
-}, 200);
-
+  },
+  
+  actions: {
+    // Cargar carrito desde localStorage al iniciar
+    initCart() {
+      const savedCart = localStorage.getItem('cart');
+      if (savedCart) {
+        this.items = JSON.parse(savedCart);
+      }
+    },
+    
+    // Guardar carrito en localStorage
+    saveCart() {
+      localStorage.setItem('cart', JSON.stringify(this.items));
+    },
+    
+    // Añadir producto al carrito
+    addToCart(product, quantity = 1) {
+      // Buscar si el producto ya existe en el carrito
+      const existingProductIndex = this.items.findIndex(item => item.id === product.id);
+      
+      if (existingProductIndex >= 0) {
+        // Si el producto ya existe, incrementar la cantidad
+        this.items[existingProductIndex].quantity += quantity;
+      } else {
+        // Si es un producto nuevo, agregarlo al carrito
+        this.items.push({
+          ...product,
+          quantity: quantity
+        });
+      }
+      
+      // Guardar carrito actualizado
+      this.saveCart();
+    },
+    
+    // Actualizar cantidad de un producto
+    updateQuantity(productId, quantity) {
+      const index = this.items.findIndex(item => item.id === productId);
+      if (index >= 0) {
+        if (quantity <= 0) {
+          // Si la cantidad es 0 o negativa, eliminar el producto
+          this.items.splice(index, 1);
+        } else {
+          // Actualizar la cantidad
+          this.items[index].quantity = quantity;
+        }
+        this.saveCart();
+      }
+    },
+    
+    // Eliminar producto del carrito
+    removeFromCart(productId) {
+      const index = this.items.findIndex(item => item.id === productId);
+      if (index >= 0) {
+        this.items.splice(index, 1);
+        this.saveCart();
+      }
+    },
+    
+    // Vaciar carrito
+    clearCart() {
+      this.items = [];
+      this.saveCart();
+    },
+    
+    // Mostrar/ocultar carrito
+    toggleCart() {
+      this.showCart = !this.showCart;
+    },
+    
+    // Procesar compra
+    async checkout(shippingInfo) {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        // Verificar si el usuario está autenticado
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Crear la orden en la base de datos
+        const { data, error } = await supabase
+          .from('orders')
+          .insert([
+            {
+              user_id: user?.id || null,
+              total: this.cartTotal,
+              products: this.items,
+              shipping_address: shippingInfo,
+              status: 'preparation'
+            }
+          ])
+          .select();
+        
+        if (error) throw error;
+        
+        // Si el usuario está autenticado, actualizar sus puntos
+        if (user) {
+          // Obtener configuración de puntos
+          const { data: configData } = await supabase
+            .from('loyalty_config')
+            .select('*')
+            .eq('id', 1)
+            .single();
+          
+          if (configData && configData.active) {
+            const pointsToAdd = Math.floor(this.cartTotal * configData.points_per_purchase);
+            
+            // Obtener puntos actuales del usuario
+            const { data: userData } = await supabase
+              .from('users')
+              .select('points')
+              .eq('id', user.id)
+              .single();
+            
+            const currentPoints = userData?.points || 0;
+            
+            // Actualizar puntos
+            await supabase
+              .from('users')
+              .update({ points: currentPoints + pointsToAdd })
+              .eq('id', user.id);
+          }
+        }
+        
+        // Limpiar carrito después de la compra exitosa
+        this.clearCart();
+        this.loading = false;
+        
+        return { success: true, order: data[0] };
+      } catch (error) {
+        this.error = error.message;
+        this.loading = false;
+        return { success: false, error: error.message };
+      }
+    }
+  }
+});
