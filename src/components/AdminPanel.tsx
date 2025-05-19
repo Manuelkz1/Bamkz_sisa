@@ -26,7 +26,7 @@ import {
   Tag
 } from 'lucide-react';
 import { CompanySettings } from './CompanySettings';
-import { PromotionManager } from './PromotionManager';
+import PromotionManager from './PromotionManager';
 import type { Product, Order, User } from '../types';
 import { format } from 'date-fns';
 
