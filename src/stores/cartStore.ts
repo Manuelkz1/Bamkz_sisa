@@ -104,45 +104,50 @@ export const useCartStore = defineStore('cart', {
     // Eliminar producto del carrito
     removeFromCart(productId) {
       const index = this.items.findIndex(item => item.id === productId);
-      if (index >= 0) {
-        this.items.splice(index, 1);
-        this.saveCart();
-      }
-    },
-    
-    // Vaciar carrito
-    clearCart() {
-      this.items = [];
-      this.saveCart();
-    },
-    
-    // Mostrar/ocultar carrito
-    toggleCart() {
-      this.showCart = !this.showCart;
-    },
-    
-    // Procesar compra
-    checkout(shippingInfo) {
-      this.loading = true;
-      this.error = null;
+      // Función asíncrona para manejar la consulta a Supabase
+      const fetchPromotionData = async () => {
+        if (index >= 0) {
+          this.items.splice(index, 1);
+          this.saveCart();
+        }
+      },
       
-      // Función para manejar la lógica asíncrona
-      const processCheckout = async () => {
-        try {
-          // Verificar si el usuario está autenticado
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          // Crear la orden en la base de datos
-          const { data, error } = await supabase
-            .from('orders')
-            .insert([
-              {
-                user_id: user?.id || null,
-                total: this.cartTotal,
-                products: this.items,
-                shipping_address: shippingInfo,
-                status: 'preparation'
-              }
+      // Vaciar carrito
+      clearCart() {
+        this.items = [];
+        this.saveCart();
+      },
+      
+      // Mostrar/ocultar carrito
+      toggleCart() {
+        this.showCart = !this.showCart;
+      },
+      
+      // Procesar compra
+      checkout(shippingInfo) {
+        this.loading = true;
+        this.error = null;
+        
+        // Función para manejar la lógica asíncrona
+        const processCheckout = async () => {
+          try {
+            // Verificar si el usuario está autenticado
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            // Crear la orden en la base de datos
+            const { data, error } = await supabase
+              .from('orders')
+              .insert([
+                {
+                  user_id: user?.id || null,
+                  total: this.cartTotal,
+                  products: this.items,
+                  shipping_address: shippingInfo,
+                  status: 'preparation'
+                }
+      };
+      // Llamar a la función asíncrona
+      fetchPromotionData();
             ])
             .select();
           
