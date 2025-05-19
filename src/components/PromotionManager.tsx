@@ -94,7 +94,7 @@ export function PromotionManager() {
     }
   };
 
-  const handleEditP  const handleEditPromotion = (promotion: Promotion) => {
+  const handleEditP  ; const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     
     // Extraer IDs de productos asociados
