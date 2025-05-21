@@ -186,17 +186,23 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       if (editingPromotion) {
         // Actualizar promoción existente
         console.log(`Actualizando promoción existente ID: ${editingPromotion.id}`);
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('promotions')
           .update(promotionData)
-          .eq('id', editingPromotion.id);
+          .eq('id', editingPromotion.id)
+          .select();
         
         if (error) {
           console.error("Error al actualizar promoción:", error);
           throw error;
         }
         
+        if (!data || data.length === 0) {
+          throw new Error("No se recibió confirmación de la promoción actualizada");
+        }
+        
         promotionId = editingPromotion.id;
+        console.log("Promoción actualizada:", data[0]);
       } else {
         // Crear nueva promoción
         console.log("Creando nueva promoción");
@@ -218,7 +224,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         }
         
         promotionId = data[0].id;
-        console.log(`Nueva promoción creada con ID: ${promotionId}`);
+        console.log(`Nueva promoción creada con ID: ${promotionId}`, data[0]);
       }
       
       // Gestionar relaciones con productos
@@ -243,14 +249,17 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
             product_id: productId
           }));
           
-          const { error: insertError } = await supabase
+          const { data: relData, error: insertError } = await supabase
             .from('promotion_products')
-            .insert(productRelations);
+            .insert(productRelations)
+            .select();
           
           if (insertError) {
             console.error("Error al crear relaciones con productos:", insertError);
             throw insertError;
           }
+          
+          console.log("Relaciones creadas:", relData);
           
           // Actualizar los productos para aplicar el descuento
           if (promotionForm.active && (promotionForm.type === 'percentage' || promotionForm.type === 'fixed')) {
@@ -267,6 +276,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               throw productsError;
             }
             
+            console.log("Productos a actualizar:", productsData);
+            
             // Aplicar descuento a cada producto
             for (const product of productsData || []) {
               // Guardar el precio original si no existe
@@ -280,8 +291,10 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                 discountedPrice = Math.max(0, originalPrice - promotionForm.value);
               }
               
+              console.log(`Actualizando producto ${product.id}: precio original ${originalPrice}, precio con descuento ${discountedPrice}`);
+              
               // Actualizar el producto
-              const { error: updateError } = await supabase
+              const { data: updatedProduct, error: updateError } = await supabase
                 .from('products')
                 .update({
                   price: discountedPrice,
@@ -291,11 +304,14 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   discount_value: promotionForm.value,
                   promotion_id: promotionId
                 })
-                .eq('id', product.id);
+                .eq('id', product.id)
+                .select();
                 
               if (updateError) {
                 console.error(`Error al actualizar precio del producto ${product.id}:`, updateError);
                 // Continuar con los demás productos aunque haya error en uno
+              } else {
+                console.log(`Producto ${product.id} actualizado:`, updatedProduct);
               }
             }
           }
@@ -615,30 +631,38 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                     <p className="text-sm text-gray-600 mt-1">{promotion.description}</p>
                   )}
                   
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      {promotion.type === 'percentage' ? `${promotion.value}% de descuento` :
-                       promotion.type === 'fixed' ? `$${promotion.value} de descuento` :
-                       promotion.type === '2x1' ? '2x1' :
-                       promotion.type === '3x2' ? '3x2' :
-                       promotion.type === '3x1' ? '3x1' : promotion.type}
-                    </span>
-                    
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {promotion.products?.length || 0} producto(s)
-                    </span>
+                  <div className="mt-3">
+                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                      {promotion.type === 'percentage' ? (
+                        `${promotion.value}% de descuento`
+                      ) : promotion.type === 'fixed' ? (
+                        `$${promotion.value} de descuento`
+                      ) : promotion.type === '2x1' ? (
+                        '2x1 (Lleva 2, paga 1)'
+                      ) : promotion.type === '3x2' ? (
+                        '3x2 (Lleva 3, paga 2)'
+                      ) : promotion.type === '3x1' ? (
+                        '3x1 (Lleva 3, paga 1)'
+                      ) : (
+                        promotion.type
+                      )}
+                    </div>
                   </div>
                   
                   {promotion.products && promotion.products.length > 0 && (
-                    <div className="mt-3 bg-gray-50 p-3 rounded-md">
-                      <p className="text-xs font-medium text-gray-700 mb-1">Productos con esta promoción:</p>
-                      <div className="max-h-24 overflow-y-auto">
-                        {promotion.products.map((product: any) => (
-                          <div key={product.id} className="text-xs py-1 border-b border-gray-100 last:border-0 flex justify-between">
-                            <span>{product.name}</span>
-                            <span className="text-gray-500">${product.price?.toFixed(2) || '0.00'}</span>
-                          </div>
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Productos ({promotion.products.length}):</p>
+                      <div className="flex flex-wrap gap-1">
+                        {promotion.products.slice(0, 3).map(product => (
+                          <span key={product.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            {product.name}
+                          </span>
                         ))}
+                        {promotion.products.length > 3 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                            +{promotion.products.length - 3} más
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
