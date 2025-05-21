@@ -21,85 +21,91 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
       <nav className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center flex-shrink-0">
               <Link to="/" className="flex items-center">
                 {settings?.logo_url ? (
                   <img
                     src={settings.logo_url}
                     alt={settings.name}
                     style={{
-                      width: `${settings.logo_width}px`,
-                      height: `${settings.logo_height}px`
+                      width: `${Math.min(settings.logo_width || 40, 40)}px`,
+                      height: `${Math.min(settings.logo_height || 40, 40)}px`
                     }}
                     className="object-contain"
                   />
                 ) : (
                   <ShoppingBag className="h-8 w-8 text-indigo-600" />
                 )}
-                <span className="ml-2 text-xl font-bold text-gray-900">
+                <span className="ml-2 text-lg sm:text-xl font-bold text-gray-900 truncate max-w-[100px] sm:max-w-full">
                   {settings?.name || 'Calidad Premium'}
                 </span>
               </Link>
             </div>
-            <div className="flex items-center space-x-4">
+            
+            {/* Menú móvil y carrito */}
+            <div className="flex items-center">
+              {/* Carrito - Tamaño aumentado para mejor acceso en móvil */}
+              {(!user || user.role !== 'fulfillment') && (
+                <button
+                  onClick={() => cartStore.toggleCart()}
+                  className="flex items-center justify-center text-gray-700 hover:text-indigo-600 relative transition-colors p-2 mr-1 sm:mr-2"
+                  aria-label="Carrito de compras"
+                >
+                  <ShoppingCart className="h-8 w-8" />
+                  {cartStore.items.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                      {cartStore.items.length}
+                    </span>
+                  )}
+                </button>
+              )}
+              
+              {/* Usuario y opciones - Menú adaptativo */}
               {user ? (
-                <div className="flex items-center space-x-4">
-                  {user.role === 'admin' && (
-                    <Link
-                      to="/admin"
-                      className="text-gray-700 hover:text-indigo-600 transition-colors"
-                    >
-                      Panel Admin
-                    </Link>
-                  )}
-                  {user.role === 'fulfillment' && (
-                    <button
-                      onClick={handleOrdersClick}
-                      className="flex items-center px-4 py-2 text-gray-700 hover:text-indigo-600 transition-colors rounded-md hover:bg-gray-50"
-                    >
-                      <Package className="h-5 w-5 mr-2" />
-                      Gestionar Pedidos
-                    </button>
-                  )}
-                  <div className="relative group">
-                    <button className="flex items-center space-x-2 text-gray-700 hover:text-indigo-600">
-                      <User className="h-5 w-5" />
-                      <span>{user.full_name || user.email}</span>
-                    </button>
-                    <div className="absolute right-0 w-48 mt-2 py-2 bg-white rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                      <button
-                        onClick={() => signOut()}
-                        className="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
+                <div className="relative group ml-1 sm:ml-2">
+                  <button className="flex items-center space-x-1 text-gray-700 hover:text-indigo-600 p-2 rounded-md">
+                    <User className="h-6 w-6" />
+                    <span className="hidden sm:inline truncate max-w-[120px]">{user.full_name || user.email}</span>
+                  </button>
+                  
+                  {/* Menú desplegable - Adaptado para móvil con mejor área táctil */}
+                  <div className="absolute right-0 w-48 mt-1 py-2 bg-white rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-gray-100">
+                    {user.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
                       >
-                        <LogOut className="h-5 w-5 mr-2" />
-                        Cerrar sesión
+                        Panel Admin
+                      </Link>
+                    )}
+                    {user.role === 'fulfillment' && (
+                      <button
+                        onClick={handleOrdersClick}
+                        className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
+                      >
+                        <Package className="h-5 w-5 mr-2" />
+                        Gestionar Pedidos
                       </button>
-                    </div>
+                    )}
+                    <button
+                      onClick={() => signOut()}
+                      className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
+                    >
+                      <LogOut className="h-5 w-5 mr-2" />
+                      Cerrar sesión
+                    </button>
                   </div>
                 </div>
               ) : (
                 <Link
                   to="/auth"
-                  className="flex items-center text-gray-700 hover:text-indigo-600 transition-colors"
+                  className="flex items-center text-gray-700 hover:text-indigo-600 transition-colors p-2 rounded-md"
                 >
-                  <User className="h-5 w-5 mr-1" />
-                  Iniciar sesión
+                  <User className="h-6 w-6" />
+                  <span className="hidden sm:inline ml-1">Iniciar sesión</span>
                 </Link>
-              )}
-              {(!user || user.role !== 'fulfillment') && (
-                <button
-                  onClick={() => cartStore.toggleCart()}
-                  className="flex items-center text-gray-700 hover:text-indigo-600 relative transition-colors"
-                >
-                  <ShoppingCart className="h-6 w-6" />
-                  {cartStore.items.length > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-indigo-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                      {cartStore.items.length}
-                    </span>
-                  )}
-                </button>
               )}
             </div>
           </div>
@@ -107,15 +113,15 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <div className="bg-indigo-700 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-indigo-700 text-white py-8 sm:py-12 md:py-16">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl font-extrabold sm:text-5xl md:text-6xl">
+            <h1 className="text-3xl font-extrabold sm:text-4xl md:text-5xl lg:text-6xl leading-tight">
               {user?.role === 'fulfillment' 
                 ? 'Gestión de Pedidos'
                 : settings?.hero_title || 'Productos de Calidad Premium'}
             </h1>
-            <p className="mt-4 text-xl text-indigo-100">
+            <p className="mt-3 sm:mt-4 md:mt-6 text-base sm:text-lg md:text-xl text-indigo-100 max-w-3xl mx-auto">
               {user?.role === 'fulfillment'
                 ? 'Administra y gestiona todos los pedidos de manera eficiente'
                 : settings?.hero_subtitle || 'Descubre nuestra selección de productos exclusivos con la mejor calidad garantizada'}
@@ -123,7 +129,7 @@ export default function Home() {
             {user?.role === 'fulfillment' && (
               <button
                 onClick={handleOrdersClick}
-                className="mt-8 inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-indigo-700 focus:ring-white"
+                className="mt-6 sm:mt-8 inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 border border-transparent text-sm sm:text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-indigo-700 focus:ring-white"
               >
                 <Package className="h-5 w-5 mr-2" />
                 Ver Pedidos Pendientes
