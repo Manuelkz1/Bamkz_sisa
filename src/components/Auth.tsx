@@ -15,7 +15,7 @@ interface AuthProps {
 export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, checkAuth } = useAuthStore();
+  const { user, signIn, initialize } = useAuthStore();
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -24,9 +24,15 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const [lastResendTime, setLastResendTime] = useState(0);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
+  // Inicializar el estado de autenticación al cargar el componente
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
+      console.log('Usuario autenticado, redirigiendo:', user);
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
     }
@@ -65,8 +71,9 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           } else if (error.message.includes('password')) {
             toast.error('La contraseña debe tener al menos 6 caracteres.');
           } else {
-            throw error;
+            toast.error(`Error: ${error.message}`);
           }
+          setLoading(false);
           return;
         }
 
@@ -95,12 +102,14 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
         );
         setShowResendConfirmation(true);
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        // Usar el método signIn del store en lugar de llamar directamente a supabase
+        console.log('Intentando iniciar sesión con:', email);
+        const result = await signIn(email, password);
         
-        if (error) {
+        if (result?.error) {
+          const error = result.error;
+          console.error('Error de inicio de sesión:', error);
+          
           if (error.message.includes('Email not confirmed')) {
             toast.error('Por favor confirma tu correo electrónico antes de iniciar sesión');
             setShowResendConfirmation(true);
@@ -109,23 +118,27 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           } else if (error.message.includes('rate limit')) {
             toast.error('Demasiados intentos. Por favor espera unos minutos antes de intentar de nuevo.');
           } else {
-            throw error;
+            toast.error(`Error: ${error.message}`);
           }
+          setLoading(false);
           return;
         }
         
-        // Update auth store and wait for it to complete
-        await checkAuth();
-        
+        // Si llegamos aquí, el inicio de sesión fue exitoso
+        console.log('Inicio de sesión exitoso');
         toast.success('¡Inicio de sesión exitoso!');
         onAuthSuccess?.();
         
+        // Forzar una actualización del estado de autenticación
+        await initialize();
+        
         // Navigate to home or previous page
         const from = location.state?.from?.pathname || '/';
+        console.log('Redirigiendo a:', from);
         navigate(from, { replace: true });
       }
     } catch (error: any) {
-      console.error('Error de autenticación:', error);
+      console.error('Error de autenticación no capturado:', error);
       toast.error('Ha ocurrido un error. Por favor intenta de nuevo más tarde.');
     } finally {
       setLoading(false);
