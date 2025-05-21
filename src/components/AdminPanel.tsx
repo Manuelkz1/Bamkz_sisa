@@ -26,8 +26,8 @@ import {
   Tag
 } from 'lucide-react';
 import { CompanySettings } from './CompanySettings';
-import PromotionManager from '../views/admin/PromotionManager.vue';
-import OrderManager from '../views/admin/OrderManager.vue';
+import PromotionManager from './PromotionManager';
+import OrderManager from './OrderManager';
 import type { Product, Order, User } from '../types';
 import { format } from 'date-fns';
 
