@@ -15,12 +15,14 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const [promotionForm, setPromotionForm] = useState({
     name: '',
     description: '',
-    type: 'percentage', // 'percentage', 'fixed', '2x1', '3x2'
+    type: 'percentage', // 'percentage', 'fixed', '2x1', '3x2', '3x1'
     value: 0,
     start_date: '',
     end_date: '',
     active: true,
-    products: [] as string[]
+    products: [] as string[],
+    buy_quantity: 1,
+    get_quantity: 1
   });
 
   useEffect(() => {
@@ -33,7 +35,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     try {
       console.log("Cargando promociones...");
       
-      // Consulta optimizada para obtener promociones con sus productos en una sola consulta
       const { data: promotionsData, error: promotionsError } = await supabase
         .from('promotions')
         .select(`
@@ -59,13 +60,11 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       
       console.log(`Promociones encontradas: ${promotionsData.length}`);
       
-      // Transformar los datos para que tengan el formato esperado
       const formattedPromotions = promotionsData.map(promotion => {
-        // Extraer los productos de la estructura anidada
         const productsList = promotion.products
           ? promotion.products
-              .filter(item => item.product) // Filtrar relaciones sin producto
-              .map(item => item.product)    // Extraer solo el objeto producto
+              .filter(item => item.product)
+              .map(item => item.product)
           : [];
         
         return {
@@ -106,7 +105,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     
-    // Extraer IDs de productos asociados
     const productIds = promotion.products?.map(product => product.id) || [];
     
     setPromotionForm({
@@ -117,7 +115,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
       active: promotion.active !== false,
-      products: productIds
+      products: productIds,
+      buy_quantity: promotion.buy_quantity || 1,
+      get_quantity: promotion.get_quantity || 1
     });
   };
 
@@ -131,7 +131,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       start_date: '',
       end_date: '',
       active: true,
-      products: []
+      products: [],
+      buy_quantity: 1,
+      get_quantity: 1
     });
   };
 
@@ -141,7 +143,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setPromotionForm(prev => ({ ...prev, [name]: checked }));
-    } else if (name === 'value') {
+    } else if (name === 'value' || name === 'buy_quantity' || name === 'get_quantity') {
       setPromotionForm(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else {
       setPromotionForm(prev => ({ ...prev, [name]: value }));
@@ -160,7 +162,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     try {
       console.log("Guardando promoción con datos:", promotionForm);
       
-      // Validar datos obligatorios
       if (!promotionForm.name.trim()) {
         toast.error('El nombre de la promoción es obligatorio');
         setLoading(false);
@@ -173,8 +174,16 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         setLoading(false);
         return;
       }
+
+      // Validate buy_quantity and get_quantity for specific promotion types
+      if (['2x1', '3x2', '3x1'].includes(promotionForm.type)) {
+        if (promotionForm.buy_quantity < 1 || promotionForm.get_quantity < 1) {
+          toast.error('Las cantidades deben ser mayores que cero');
+          setLoading(false);
+          return;
+        }
+      }
       
-      // Preparar datos para guardar
       const promotionData = {
         name: promotionForm.name.trim(),
         description: promotionForm.description.trim(),
@@ -183,13 +192,14 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         start_date: promotionForm.start_date || null,
         end_date: promotionForm.end_date || null,
         active: promotionForm.active,
+        buy_quantity: promotionForm.buy_quantity,
+        get_quantity: promotionForm.get_quantity,
         updated_at: new Date().toISOString()
       };
       
       let promotionId;
       
       if (editingPromotion) {
-        // Actualizar promoción existente
         console.log(`Actualizando promoción existente ID: ${editingPromotion.id}`);
         const { data, error } = await supabase
           .from('promotions')
@@ -213,7 +223,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         promotionId = editingPromotion.id;
         console.log("Promoción actualizada:", data[0]);
       } else {
-        // Crear nueva promoción
         console.log("Creando nueva promoción");
         const { data, error } = await supabase
           .from('promotions')
@@ -240,9 +249,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         console.log(`Nueva promoción creada con ID: ${promotionId}`, data[0]);
       }
       
-      // Gestionar relaciones con productos
       if (promotionId) {
-        // Primero eliminar todas las relaciones existentes
         console.log(`Eliminando relaciones existentes para promoción ID: ${promotionId}`);
         const { error: deleteError } = await supabase
           .from('promotion_products')
@@ -255,7 +262,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
           throw deleteError;
         }
         
-        // Luego crear las nuevas relaciones
         if (promotionForm.products.length > 0) {
           console.log(`Creando ${promotionForm.products.length} nuevas relaciones con productos`);
           const productRelations = promotionForm.products.map(productId => ({
@@ -276,11 +282,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
           
           console.log("Relaciones creadas:", relData);
           
-          // Actualizar los productos para aplicar el descuento
           if (promotionForm.active && (promotionForm.type === 'percentage' || promotionForm.type === 'fixed')) {
             console.log(`Aplicando descuento a ${promotionForm.products.length} productos`);
             
-            // Obtener los productos actuales
             const { data: productsData, error: productsError } = await supabase
               .from('products')
               .select('id, price, original_price')
@@ -294,15 +298,11 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
             
             console.log("Productos a actualizar:", productsData);
             
-            // Aplicar descuento a cada producto
             for (const product of productsData || []) {
-              // Guardar el precio original si no existe
               const originalPrice = product.original_price || product.price;
               let discountedPrice = originalPrice;
               
-              // Calcular precio con descuento
               if (promotionForm.type === 'percentage') {
-                // Corregido: Asegurar que el cálculo del porcentaje sea preciso
                 discountedPrice = Number((originalPrice * (1 - (promotionForm.value / 100))).toFixed(2));
               } else if (promotionForm.type === 'fixed') {
                 discountedPrice = Math.max(0, originalPrice - promotionForm.value);
@@ -310,7 +310,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               
               console.log(`Actualizando producto ${product.id}: precio original ${originalPrice}, precio con descuento ${discountedPrice}`);
               
-              // Actualizar el producto
               const { data: updatedProduct, error: updateError } = await supabase
                 .from('products')
                 .update({
@@ -327,7 +326,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               if (updateError) {
                 console.error(`Error al actualizar precio del producto ${product.id}:`, updateError);
                 toast.error(`Error al actualizar producto: ${updateError.message}`);
-                // Continuar con los demás productos aunque haya error en uno
               } else {
                 console.log(`Producto ${product.id} actualizado:`, updatedProduct);
               }
@@ -338,13 +336,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       
       toast.success(editingPromotion ? 'Promoción actualizada exitosamente' : 'Promoción creada exitosamente');
       
-      // Recargar promociones para actualizar la lista
       await fetchPromotions();
-      
-      // Recargar productos para ver los cambios de precios
       await fetchProducts();
-      
-      // Limpiar formulario
       handleNewPromotion();
       
       if (onPromotionCreated) {
@@ -363,13 +356,11 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     
     setLoading(true);
     try {
-      // Primero eliminar las relaciones con productos
       await supabase
         .from('promotion_products')
         .delete()
         .eq('promotion_id', id);
       
-      // Luego eliminar la promoción
       const { error } = await supabase
         .from('promotions')
         .delete()
@@ -466,6 +457,39 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                     Esto descontará ${promotionForm.value} del precio de los productos seleccionados.
                   </p>
                 )}
+              </div>
+            )}
+
+            {['2x1', '3x2', '3x1'].includes(promotionForm.type) && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700">
+                    Cantidad a comprar
+                  </label>
+                  <input
+                    type="number"
+                    name="buy_quantity"
+                    value={promotionForm.buy_quantity}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    min="1"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700">
+                    Cantidad a obtener
+                  </label>
+                  <input
+                    type="number"
+                    name="get_quantity"
+                    value={promotionForm.get_quantity}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    min="1"
+                    required
+                  />
+                </div>
               </div>
             )}
             
@@ -637,7 +661,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                         onClick={() => handleDeletePromotion(promotion.id)}
                         className="text-red-600 hover:text-red-800 flex items-center"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg"className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                         Eliminar
@@ -665,6 +689,15 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                       <span className="text-sm font-medium text-gray-700 mr-2">Valor:</span>
                       <span className="text-sm text-gray-600">
                         {promotion.type === 'percentage' ? `${promotion.value}%` : `$${promotion.value}`}
+                      </span>
+                    </div>
+                  )}
+
+                  {['2x1', '3x2', '3x1'].includes(promotion.type) && (
+                    <div className="mt-1 flex items-center">
+                      <span className="text-sm font-medium text-gray-700 mr-2">Cantidades:</span>
+                      <span className="text-sm text-gray-600">
+                        Compra {promotion.buy_quantity}, Lleva {promotion.get_quantity}
                       </span>
                     </div>
                   )}
