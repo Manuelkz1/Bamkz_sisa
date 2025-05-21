@@ -46,6 +46,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       
       if (promotionsError) {
         console.error("Error al cargar promociones:", promotionsError);
+        toast.error(`Error al cargar promociones: ${promotionsError.message}`);
         throw promotionsError;
       }
       
@@ -89,7 +90,11 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         .from('products')
         .select('*');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error al cargar productos:', error);
+        toast.error(`Error al cargar productos: ${error.message}`);
+        throw error;
+      }
       
       setProducts(data || []);
     } catch (error) {
@@ -194,11 +199,15 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         
         if (error) {
           console.error("Error al actualizar promoción:", error);
+          toast.error(`Error al actualizar promoción: ${error.message}`);
           throw error;
         }
         
         if (!data || data.length === 0) {
-          throw new Error("No se recibió confirmación de la promoción actualizada");
+          const errorMsg = "No se recibió confirmación de la promoción actualizada";
+          console.error(errorMsg);
+          toast.error(errorMsg);
+          throw new Error(errorMsg);
         }
         
         promotionId = editingPromotion.id;
@@ -216,11 +225,15 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         
         if (error) {
           console.error("Error al crear promoción:", error);
+          toast.error(`Error al crear promoción: ${error.message}`);
           throw error;
         }
         
         if (!data || data.length === 0) {
-          throw new Error("No se recibió ID de la promoción creada");
+          const errorMsg = "No se recibió ID de la promoción creada";
+          console.error(errorMsg);
+          toast.error(errorMsg);
+          throw new Error(errorMsg);
         }
         
         promotionId = data[0].id;
@@ -238,6 +251,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         
         if (deleteError) {
           console.error("Error al eliminar relaciones existentes:", deleteError);
+          toast.error(`Error al eliminar relaciones: ${deleteError.message}`);
           throw deleteError;
         }
         
@@ -256,6 +270,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
           
           if (insertError) {
             console.error("Error al crear relaciones con productos:", insertError);
+            toast.error(`Error al crear relaciones: ${insertError.message}`);
             throw insertError;
           }
           
@@ -273,6 +288,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               
             if (productsError) {
               console.error("Error al obtener productos para aplicar descuento:", productsError);
+              toast.error(`Error al obtener productos: ${productsError.message}`);
               throw productsError;
             }
             
@@ -310,6 +326,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                 
               if (updateError) {
                 console.error(`Error al actualizar precio del producto ${product.id}:`, updateError);
+                toast.error(`Error al actualizar producto: ${updateError.message}`);
                 // Continuar con los demás productos aunque haya error en uno
               } else {
                 console.log(`Producto ${product.id} actualizado:`, updatedProduct);
@@ -629,38 +646,40 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   </div>
                   
                   {promotion.description && (
-                    <p className="text-sm text-gray-600 mt-1">{promotion.description}</p>
+                    <p className="text-gray-600 text-sm mt-2">{promotion.description}</p>
                   )}
                   
-                  <div className="mt-3">
-                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                      {promotion.type === 'percentage' ? (
-                        `${promotion.value}% de descuento`
-                      ) : promotion.type === 'fixed' ? (
-                        `$${promotion.value} de descuento`
-                      ) : promotion.type === '2x1' ? (
-                        '2x1 (Lleva 2, paga 1)'
-                      ) : promotion.type === '3x2' ? (
-                        '3x2 (Lleva 3, paga 2)'
-                      ) : promotion.type === '3x1' ? (
-                        '3x1 (Lleva 3, paga 1)'
-                      ) : (
-                        promotion.type
-                      )}
-                    </div>
+                  <div className="mt-3 flex items-center">
+                    <span className="text-sm font-medium text-gray-700 mr-2">Tipo:</span>
+                    <span className="text-sm text-gray-600">
+                      {promotion.type === 'percentage' ? 'Porcentaje de descuento' :
+                       promotion.type === 'fixed' ? 'Monto fijo de descuento' :
+                       promotion.type === '2x1' ? '2x1' :
+                       promotion.type === '3x2' ? '3x2' :
+                       promotion.type === '3x1' ? '3x1' : promotion.type}
+                    </span>
                   </div>
+                  
+                  {(promotion.type === 'percentage' || promotion.type === 'fixed') && promotion.value !== undefined && (
+                    <div className="mt-1 flex items-center">
+                      <span className="text-sm font-medium text-gray-700 mr-2">Valor:</span>
+                      <span className="text-sm text-gray-600">
+                        {promotion.type === 'percentage' ? `${promotion.value}%` : `$${promotion.value}`}
+                      </span>
+                    </div>
+                  )}
                   
                   {promotion.products && promotion.products.length > 0 && (
                     <div className="mt-3">
-                      <p className="text-xs font-medium text-gray-500 mb-1">Productos ({promotion.products.length}):</p>
-                      <div className="flex flex-wrap gap-1">
+                      <span className="text-sm font-medium text-gray-700">Productos:</span>
+                      <div className="mt-1 flex flex-wrap gap-1">
                         {promotion.products.slice(0, 3).map(product => (
-                          <span key={product.id} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          <span key={product.id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                             {product.name}
                           </span>
                         ))}
                         {promotion.products.length > 3 && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                             +{promotion.products.length - 3} más
                           </span>
                         )}
