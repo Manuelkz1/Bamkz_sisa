@@ -74,39 +74,105 @@ export function AdminPanel() {
       payment_url: ''
     }
   });
-
+  
+  // Inicialización del componente
   useEffect(() => {
-    switch (activeTab) {
-      case 'products':
-        loadProducts();
-        break;
-      case 'orders':
-        loadOrders();
-        break;
-      case 'users':
-        loadUsers();
-        break;
-      case 'promotions':
-        // No necesita cargar datos aquí ya que PromotionManager maneja su propia carga
-        setLoading(false);
-        break;
+    console.log("AdminPanel inicializado");
+    // Cargar datos iniciales según la pestaña activa
+    loadInitialData();
+  }, []);
+
+  // Función para cargar datos iniciales
+  const loadInitialData = () => {
+    console.log("Cargando datos iniciales para la pestaña:", activeTab);
+    try {
+      switch (activeTab) {
+        case 'products':
+          loadProducts();
+          break;
+        case 'orders':
+          loadOrders();
+          break;
+        case 'users':
+          loadUsers();
+          break;
+        case 'settings':
+          // CompanySettings maneja su propia carga
+          setLoading(false);
+          break;
+        case 'promotions':
+          // PromotionManager maneja su propia carga
+          setLoading(false);
+          break;
+        default:
+          setLoading(false);
+          break;
+      }
+    } catch (error) {
+      console.error("Error al cargar datos iniciales:", error);
+      setError("Error al cargar datos iniciales. Por favor, intente nuevamente.");
+      setLoading(false);
+    }
+  };
+
+  // Efecto para cambiar de pestaña
+  useEffect(() => {
+    console.log("Cambio de pestaña a:", activeTab);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      switch (activeTab) {
+        case 'products':
+          loadProducts();
+          break;
+        case 'orders':
+          loadOrders();
+          break;
+        case 'users':
+          loadUsers();
+          break;
+        case 'settings':
+          // CompanySettings maneja su propia carga
+          setLoading(false);
+          break;
+        case 'promotions':
+          // PromotionManager maneja su propia carga
+          setLoading(false);
+          break;
+        default:
+          setLoading(false);
+          break;
+      }
+    } catch (error) {
+      console.error("Error al cambiar de pestaña:", error);
+      setError("Error al cargar datos. Por favor, intente nuevamente.");
+      setLoading(false);
     }
   }, [activeTab]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log("Cargando productos...");
+      
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error en la consulta de productos:', error);
+        throw error;
+      }
+      
+      console.log(`Productos cargados: ${data?.length || 0}`);
       setProducts(data || []);
     } catch (error: any) {
       console.error('Error loading products:', error);
-      setError(error.message);
-      toast.error('Error al cargar los productos');
+      setError(error.message || "Error al cargar los productos");
+      toast.error('Error al cargar los productos. Por favor, intente nuevamente.');
     } finally {
       setLoading(false);
     }
