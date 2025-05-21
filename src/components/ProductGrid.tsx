@@ -6,6 +6,45 @@ import { ShoppingCart, Search, Filter, X, Tag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import type { Product, Promotion } from '../types';
 
+// Función para determinar la mejor promoción entre dos
+function getBetterPromotion(promo1: Promotion, promo2: Promotion): Promotion {
+  // Para promociones de porcentaje, elegir la de mayor porcentaje
+  if (promo1.type === 'percentage' && promo2.type === 'percentage') {
+    return promo1.value > promo2.value ? promo1 : promo2;
+  }
+  
+  // Para promociones de valor fijo, elegir la de mayor valor
+  if (promo1.type === 'fixed' && promo2.type === 'fixed') {
+    return promo1.value > promo2.value ? promo1 : promo2;
+  }
+  
+  // Si son tipos diferentes, calcular el descuento efectivo para un producto de precio medio
+  const averagePrice = 100; // Precio de referencia para comparar
+  
+  const discount1 = calculateEffectiveDiscount(promo1, averagePrice);
+  const discount2 = calculateEffectiveDiscount(promo2, averagePrice);
+  
+  return discount1 > discount2 ? promo1 : promo2;
+}
+
+// Calcula el descuento efectivo de una promoción para un precio dado
+function calculateEffectiveDiscount(promo: Promotion, price: number): number {
+  switch (promo.type) {
+    case 'percentage':
+      return price * (promo.value / 100);
+    case 'fixed':
+      return Math.min(price, promo.value);
+    case '2x1':
+      return price * 0.5; // 50% de descuento efectivo
+    case '3x2':
+      return price * (1/3); // 33.33% de descuento efectivo
+    case '3x1':
+      return price * (2/3); // 66.67% de descuento efectivo
+    default:
+      return 0;
+  }
+}
+
 export function ProductGrid() {
   const navigate = useNavigate();
   const cartStore = useCartStore();
@@ -76,30 +115,73 @@ export function ProductGrid() {
       if (filteredProducts.length > 0) {
         const productIds = filteredProducts.map(p => p.id);
         
-        const { data: promotionsData, error: promotionsError } = await supabase
-          .from('promotion_products')
-          .select(`
-            product_id,
-            promotion:promotions(
-              id, name, type, buy_quantity, get_quantity, total_price, is_active, 
-              start_date, end_date, created_at, updated_at
-            )
-          `)
-          .in('product_id', productIds)
-          .filter('promotion.is_active', 'eq', true)
-          .filter('promotion.start_date', 'lte', new Date().toISOString())
-          .filter('promotion.end_date', 'gte', new Date().toISOString());
+        console.log("Cargando promociones para productos:", productIds);
+        
+        try {
+          // Primero obtenemos las relaciones entre productos y promociones
+          const { data: relationData, error: relationError } = await supabase
+            .from('promotion_products')
+            .select('promotion_id, product_id')
+            .in('product_id', productIds);
+            
+          if (relationError) throw relationError;
           
-        if (!promotionsError && promotionsData) {
-          const promotionsMap: {[key: string]: Promotion} = {};
-          
-          promotionsData.forEach((item: any) => {
-            if (item.promotion && item.product_id) {
-              promotionsMap[item.product_id] = item.promotion;
+          if (relationData && relationData.length > 0) {
+            console.log(`Encontradas ${relationData.length} relaciones producto-promoción`);
+            
+            // Obtenemos los IDs de promociones
+            const promotionIds = [...new Set(relationData.map(rel => rel.promotion_id))];
+            
+            // Obtenemos los detalles de las promociones activas
+            const { data: promotionsData, error: promotionsError } = await supabase
+              .from('promotions')
+              .select('*')
+              .in('id', promotionIds)
+              .eq('active', true)
+              .or(`start_date.is.null,start_date.lte.${new Date().toISOString()}`)
+              .or(`end_date.is.null,end_date.gte.${new Date().toISOString()}`);
+              
+            if (promotionsError) throw promotionsError;
+            
+            if (promotionsData && promotionsData.length > 0) {
+              console.log(`Encontradas ${promotionsData.length} promociones activas`);
+              
+              // Creamos un mapa de promociones por ID para acceso rápido
+              const promotionsById: {[key: string]: Promotion} = {};
+              promotionsData.forEach(promo => {
+                promotionsById[promo.id] = promo;
+              });
+              
+              // Asignamos promociones a productos
+              const promotionsMap: {[key: string]: Promotion} = {};
+              relationData.forEach(rel => {
+                const promotion = promotionsById[rel.promotion_id];
+                if (promotion) {
+                  // Si ya hay una promoción asignada a este producto, elegimos la mejor
+                  if (promotionsMap[rel.product_id]) {
+                    // Priorizar promociones de mayor descuento
+                    if (getBetterPromotion(promotion, promotionsMap[rel.product_id]) === promotion) {
+                      promotionsMap[rel.product_id] = promotion;
+                    }
+                  } else {
+                    promotionsMap[rel.product_id] = promotion;
+                  }
+                }
+              });
+              
+              console.log("Mapa final de promociones por producto:", promotionsMap);
+              setProductPromotions(promotionsMap);
+            } else {
+              console.log("No se encontraron promociones activas");
+              setProductPromotions({});
             }
-          });
-          
-          setProductPromotions(promotionsMap);
+          } else {
+            console.log("No se encontraron relaciones producto-promoción");
+            setProductPromotions({});
+          }
+        } catch (error) {
+          console.error("Error al cargar promociones:", error);
+          setProductPromotions({});
         }
       }
     } catch (error: any) {
@@ -262,19 +344,34 @@ export function ProductGrid() {
                             {productPromotions[product.id].type === '3x2' && 'Compra 3, paga 2'}
                           </div>
                         </>
-                      ) : (
+                      ) : productPromotions[product.id].type === 'percentage' ? (
                         <>
                           <div className="flex items-center">
                             <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
                             <span className="text-xl sm:text-2xl font-bold text-red-600">
-                              ${productPromotions[product.id].total_price ? productPromotions[product.id].total_price.toFixed(2) : (product.price * 0.8).toFixed(2)}
+                              ${(product.price * (1 - productPromotions[product.id].value / 100)).toFixed(2)}
                             </span>
                           </div>
                           <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             <Tag className="h-3 w-3 mr-1" />
-                            {productPromotions[product.id].total_price ? 'Precio especial' : '20% de descuento'}
+                            {productPromotions[product.id].value}% de descuento
                           </div>
                         </>
+                      ) : productPromotions[product.id].type === 'fixed' ? (
+                        <>
+                          <div className="flex items-center">
+                            <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
+                            <span className="text-xl sm:text-2xl font-bold text-red-600">
+                              ${Math.max(0, product.price - productPromotions[product.id].value).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <Tag className="h-3 w-3 mr-1" />
+                            ${productPromotions[product.id].value} de descuento
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-xl sm:text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
                       )}
                     </>
                   ) : (
