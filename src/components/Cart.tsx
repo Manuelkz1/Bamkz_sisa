@@ -3,17 +3,15 @@ import { X, Minus, Plus, ShoppingBag, Tag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { Link } from 'react-router-dom';
 
-export function Cart() {
+export default function Cart() {
   const cartStore = useCartStore();
 
   if (!cartStore.isOpen) return null;
 
-  // Función para encontrar promociones aplicadas a un producto
   const findPromotion = (productId: string) => {
     return cartStore.promotionsApplied.find(p => p.productId === productId);
   };
 
-  // Función para mostrar el tipo de promoción
   const getPromotionLabel = (type: string) => {
     switch (type) {
       case '2x1': return 'Compra 2, paga 1';
@@ -24,7 +22,6 @@ export function Cart() {
     }
   };
 
-  // Calcular el total de descuentos
   const totalDiscount = cartStore.promotionsApplied.reduce((sum, promo) => sum + promo.discount, 0);
 
   return (

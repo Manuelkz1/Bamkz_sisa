@@ -7,7 +7,7 @@ import type { Product, Promotion } from '../types';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 
-export function ProductDetail() {
+export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const cartStore = useCartStore();
@@ -44,7 +44,6 @@ export function ProductDetail() {
         const firstColor = data.available_colors[0];
         setSelectedColor(firstColor);
         
-        // Si hay una imagen asociada al primer color, mostrarla
         if (data.color_images && data.color_images.length > 0) {
           const colorImage = data.color_images.find(ci => ci.color === firstColor);
           if (colorImage && colorImage.image) {
@@ -53,7 +52,6 @@ export function ProductDetail() {
         }
       }
 
-      // Cargar promociones activas para este producto
       const { data: promotionData, error: promotionError } = await supabase
         .from('promotion_products')
         .select(`
@@ -72,7 +70,6 @@ export function ProductDetail() {
         setActivePromotion(promotionData.promotion);
       }
 
-      // Load related products
       const { data: related, error: relatedError } = await supabase
         .from('products')
         .select('*')
@@ -127,41 +124,33 @@ export function ProductDetail() {
     navigate('/checkout');
   };
 
-  // Calcular precio con descuento si hay una promoción activa
   const getDiscountedPrice = () => {
     if (!product || !activePromotion) return null;
     
-    // Si la promoción tiene un precio total específico, usarlo
     if (activePromotion.total_price) {
       return activePromotion.total_price;
     }
     
-    // Si es una promoción de descuento, aplicar el porcentaje
     if (activePromotion.type === 'discount') {
       const discountPercent = activePromotion.discount_percent || 20;
       const discountMultiplier = (100 - discountPercent) / 100;
       return (product.price * discountMultiplier).toFixed(2);
     }
     
-    // Para promociones tipo 2x1, 3x1, 3x2
     if (['2x1', '3x1', '3x2'].includes(activePromotion.type)) {
-      // Solo aplicar la promoción si la cantidad seleccionada es suficiente
       if (quantity >= activePromotion.buy_quantity) {
         const fullPriceSets = Math.floor(quantity / activePromotion.buy_quantity);
         const remainder = quantity % activePromotion.buy_quantity;
         
-        // Calcular cuántos productos se pagan realmente
         const paidItems = (fullPriceSets * activePromotion.get_quantity) + remainder;
         
         return (paidItems * product.price).toFixed(2);
       }
     }
     
-    // Si no aplica ninguna promoción o la cantidad no es suficiente
     return (quantity * product.price).toFixed(2);
   };
   
-  // Calcular el precio regular (sin promoción)
   const getRegularPrice = () => {
     if (!product) return null;
     return (quantity * product.price).toFixed(2);
@@ -324,7 +313,6 @@ export function ProductDetail() {
                       onClick={() => {
                         setSelectedColor(color);
                         
-                        // Buscar si hay una imagen asociada a este color
                         if (product.color_images && product.color_images.length > 0) {
                           const colorImage = product.color_images.find(ci => ci.color === color);
                           if (colorImage && colorImage.image) {

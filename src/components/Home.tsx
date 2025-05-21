@@ -7,7 +7,7 @@ import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
 import { useCompanySettings } from '../hooks/useCompanySettings';
 
-export function Home() {
+export default function Home() {
   const { user, signOut } = useAuthStore();
   const cartStore = useCartStore();
   const navigate = useNavigate();
