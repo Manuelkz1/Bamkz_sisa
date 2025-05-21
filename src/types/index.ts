@@ -97,11 +97,10 @@ export interface PaymentMethod {
 export interface Promotion {
   id: string;
   name: string;
-  type: '2x1' | '3x1' | '3x2';
-  buy_quantity: number;
-  get_quantity: number;
-  total_price: number | null;
-  is_active: boolean;
+  description?: string;
+  type: 'percentage' | 'fixed' | '2x1' | '3x1' | '3x2';
+  value: number;
+  active: boolean;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
