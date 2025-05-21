@@ -208,18 +208,18 @@ export function ProductGrid() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {products.map((product) => (
           <Link
             key={product.id}
             to={`/product/${product.id}`}
-            className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105"
+            className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105 flex flex-col"
           >
             <div className="relative">
               <img
                 src={product.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80'}
                 alt={product.name}
-                className="w-full h-48 object-cover"
+                className="w-full h-36 sm:h-40 md:h-48 object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80';
@@ -245,16 +245,16 @@ export function ProductGrid() {
                 </div>
               )}
             </div>
-            <div className="p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
-              <div className="flex justify-between items-center">
+            <div className="p-3 sm:p-4 flex-grow flex flex-col">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1 sm:mb-2 line-clamp-2">{product.name}</h3>
+              <p className="text-gray-600 text-xs sm:text-sm mb-2 sm:mb-4 line-clamp-2 flex-grow">{product.description}</p>
+              <div className="flex justify-between items-center mt-auto">
                 <div className="flex flex-col">
                   {productPromotions[product.id] ? (
                     <>
                       {productPromotions[product.id].type === '2x1' || productPromotions[product.id].type === '3x1' || productPromotions[product.id].type === '3x2' ? (
                         <>
-                          <span className="text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
+                          <span className="text-xl sm:text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
                           <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                             <Tag className="h-3 w-3 mr-1" />
                             {productPromotions[product.id].type === '2x1' && 'Compra 2, paga 1'}
@@ -265,8 +265,8 @@ export function ProductGrid() {
                       ) : (
                         <>
                           <div className="flex items-center">
-                            <span className="text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
-                            <span className="text-2xl font-bold text-red-600">
+                            <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
+                            <span className="text-xl sm:text-2xl font-bold text-red-600">
                               ${productPromotions[product.id].total_price ? productPromotions[product.id].total_price.toFixed(2) : (product.price * 0.8).toFixed(2)}
                             </span>
                           </div>
@@ -278,30 +278,31 @@ export function ProductGrid() {
                       )}
                     </>
                   ) : (
-                    <span className="text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
+                    <span className="text-xl sm:text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 sm:gap-2">
                   <button
                     onClick={(e) => handleAddToCart(product, e)}
                     className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                    aria-label="Agregar al carrito"
                   >
                     <ShoppingCart className="h-5 w-5" />
                   </button>
                   <button
                     onClick={(e) => handleBuyNow(product, e)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                    className="px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
                   >
                     Comprar
                   </button>
                 </div>
               </div>
               {product.available_colors && product.available_colors.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1">
+                <div className="mt-2 flex flex-wrap gap-1">
                   {product.available_colors.map(color => (
                     <span
                       key={`${product.id}-${color}-tag`}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800"
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-800"
                     >
                       <div
                         className="w-2 h-2 rounded-full mr-1"
