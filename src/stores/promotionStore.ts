@@ -13,6 +13,8 @@ export interface Promotion {
   product_ids?: string[];
   created_at?: string;
   updated_at?: string;
+  buy_quantity: number;
+  get_quantity: number;
 }
 
 interface PromotionStore {
@@ -95,6 +97,8 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
           active: promotion.active,
           start_date: promotion.start_date || null,
           end_date: promotion.end_date || null,
+          buy_quantity: promotion.buy_quantity || 1,
+          get_quantity: promotion.get_quantity || 1,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])

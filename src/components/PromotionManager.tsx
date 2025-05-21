@@ -20,7 +20,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     start_date: '',
     end_date: '',
     active: true,
-    product_ids: [] as string[]
+    product_ids: [] as string[],
+    buy_quantity: 1,
+    get_quantity: 1
   });
 
   useEffect(() => {
@@ -64,7 +66,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
       active: promotion.active,
-      product_ids: promotion.product_ids || []
+      product_ids: promotion.product_ids || [],
+      buy_quantity: promotion.buy_quantity || 1,
+      get_quantity: promotion.get_quantity || 1
     });
   };
 
@@ -78,7 +82,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       start_date: '',
       end_date: '',
       active: true,
-      product_ids: []
+      product_ids: [],
+      buy_quantity: 1,
+      get_quantity: 1
     });
   };
 
@@ -114,7 +120,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         active: promotionForm.active,
         start_date: promotionForm.start_date || undefined,
         end_date: promotionForm.end_date || undefined,
-        product_ids: promotionForm.product_ids
+        product_ids: promotionForm.product_ids,
+        buy_quantity: promotionForm.buy_quantity,
+        get_quantity: promotionForm.get_quantity
       };
 
       let result;
@@ -220,6 +228,33 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   className="w-full p-2 border rounded"
                   required
                 />
+              </div>
+            )}
+
+            {['2x1', '3x2', '3x1'].includes(promotionForm.type) && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Comprar (cantidad)</label>
+                  <input
+                    type="number"
+                    value={promotionForm.buy_quantity}
+                    onChange={(e) => setPromotionForm(prev => ({ ...prev, buy_quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    min="1"
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Llevar (cantidad)</label>
+                  <input
+                    type="number"
+                    value={promotionForm.get_quantity}
+                    onChange={(e) => setPromotionForm(prev => ({ ...prev, get_quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    min="1"
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
               </div>
             )}
 
@@ -334,9 +369,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   <p>
                     Tipo: {promotion.type === 'percentage' ? `${promotion.value}% de descuento` :
                           promotion.type === 'fixed' ? `$${promotion.value} de descuento` :
-                          promotion.type === '2x1' ? 'Lleva 2, paga 1' :
-                          promotion.type === '3x2' ? 'Lleva 3, paga 2' :
-                          'Lleva 3, paga 1'}
+                          promotion.type === '2x1' ? `Lleva ${promotion.get_quantity}, paga ${promotion.buy_quantity}` :
+                          promotion.type === '3x2' ? `Lleva ${promotion.get_quantity}, paga ${promotion.buy_quantity}` :
+                          `Lleva ${promotion.get_quantity}, paga ${promotion.buy_quantity}`}
                   </p>
                   <p>
                     Estado: <span className={promotion.active ? 'text-green-600' : 'text-red-600'}>
