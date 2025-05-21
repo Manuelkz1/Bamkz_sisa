@@ -286,7 +286,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               
               // Calcular precio con descuento
               if (promotionForm.type === 'percentage') {
-                discountedPrice = originalPrice * (1 - (promotionForm.value / 100));
+                // Corregido: Asegurar que el cálculo del porcentaje sea preciso
+                discountedPrice = Number((originalPrice * (1 - (promotionForm.value / 100))).toFixed(2));
               } else if (promotionForm.type === 'fixed') {
                 discountedPrice = Math.max(0, originalPrice - promotionForm.value);
               }
