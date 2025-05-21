@@ -33,12 +33,21 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     try {
       console.log("Cargando promociones...");
       
-      // Primero obtenemos las promociones
+      // Consulta optimizada para obtener promociones con sus productos en una sola consulta
       const { data: promotionsData, error: promotionsError } = await supabase
         .from('promotions')
-        .select('*');
+        .select(`
+          *,
+          products:promotion_products(
+            product:products(*)
+          )
+        `)
+        .order('created_at', { ascending: false });
       
-      if (promotionsError) throw promotionsError;
+      if (promotionsError) {
+        console.error("Error al cargar promociones:", promotionsError);
+        throw promotionsError;
+      }
       
       if (!promotionsData || promotionsData.length === 0) {
         console.log("No se encontraron promociones");
@@ -49,42 +58,23 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       
       console.log(`Promociones encontradas: ${promotionsData.length}`);
       
-      // Para cada promoción, obtenemos sus productos asociados
-      const promotionsWithProducts = await Promise.all(
-        promotionsData.map(async (promotion) => {
-          // Obtenemos las relaciones promoción-producto
-          const { data: relationData, error: relationError } = await supabase
-            .from('promotion_products')
-            .select('product_id')
-            .eq('promotion_id', promotion.id);
-            
-          if (relationError) {
-            console.error(`Error al obtener relaciones para promoción ${promotion.id}:`, relationError);
-            return { ...promotion, products: [] };
-          }
-          
-          if (!relationData || relationData.length === 0) {
-            return { ...promotion, products: [] };
-          }
-          
-          // Obtenemos los detalles de los productos
-          const productIds = relationData.map(rel => rel.product_id);
-          const { data: productsData, error: productsError } = await supabase
-            .from('products')
-            .select('*')
-            .in('id', productIds);
-            
-          if (productsError) {
-            console.error(`Error al obtener productos para promoción ${promotion.id}:`, productsError);
-            return { ...promotion, products: [] };
-          }
-          
-          return { ...promotion, products: productsData || [] };
-        })
-      );
+      // Transformar los datos para que tengan el formato esperado
+      const formattedPromotions = promotionsData.map(promotion => {
+        // Extraer los productos de la estructura anidada
+        const productsList = promotion.products
+          ? promotion.products
+              .filter(item => item.product) // Filtrar relaciones sin producto
+              .map(item => item.product)    // Extraer solo el objeto producto
+          : [];
+        
+        return {
+          ...promotion,
+          products: productsList
+        };
+      });
       
-      console.log("Promociones con productos:", promotionsWithProducts);
-      setPromotions(promotionsWithProducts);
+      console.log("Promociones formateadas:", formattedPromotions);
+      setPromotions(formattedPromotions);
     } catch (error) {
       console.error('Error al cargar promociones:', error);
       toast.error('Error al cargar promociones');
@@ -261,6 +251,54 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
             console.error("Error al crear relaciones con productos:", insertError);
             throw insertError;
           }
+          
+          // Actualizar los productos para aplicar el descuento
+          if (promotionForm.active && (promotionForm.type === 'percentage' || promotionForm.type === 'fixed')) {
+            console.log(`Aplicando descuento a ${promotionForm.products.length} productos`);
+            
+            // Obtener los productos actuales
+            const { data: productsData, error: productsError } = await supabase
+              .from('products')
+              .select('id, price, original_price')
+              .in('id', promotionForm.products);
+              
+            if (productsError) {
+              console.error("Error al obtener productos para aplicar descuento:", productsError);
+              throw productsError;
+            }
+            
+            // Aplicar descuento a cada producto
+            for (const product of productsData || []) {
+              // Guardar el precio original si no existe
+              const originalPrice = product.original_price || product.price;
+              let discountedPrice = originalPrice;
+              
+              // Calcular precio con descuento
+              if (promotionForm.type === 'percentage') {
+                discountedPrice = originalPrice * (1 - (promotionForm.value / 100));
+              } else if (promotionForm.type === 'fixed') {
+                discountedPrice = Math.max(0, originalPrice - promotionForm.value);
+              }
+              
+              // Actualizar el producto
+              const { error: updateError } = await supabase
+                .from('products')
+                .update({
+                  price: discountedPrice,
+                  original_price: originalPrice,
+                  has_discount: true,
+                  discount_type: promotionForm.type,
+                  discount_value: promotionForm.value,
+                  promotion_id: promotionId
+                })
+                .eq('id', product.id);
+                
+              if (updateError) {
+                console.error(`Error al actualizar precio del producto ${product.id}:`, updateError);
+                // Continuar con los demás productos aunque haya error en uno
+              }
+            }
+          }
         }
       }
       
@@ -268,6 +306,9 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       
       // Recargar promociones para actualizar la lista
       await fetchPromotions();
+      
+      // Recargar productos para ver los cambios de precios
+      await fetchProducts();
       
       // Limpiar formulario
       handleNewPromotion();
