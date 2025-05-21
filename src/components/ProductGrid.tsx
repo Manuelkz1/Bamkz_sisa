@@ -137,7 +137,7 @@ export function ProductGrid() {
               .from('promotions')
               .select('*')
               .in('id', promotionIds)
-              .eq('active', true)
+              .eq('is_active', true)
               .or(`start_date.is.null,start_date.lte.${new Date().toISOString()}`)
               .or(`end_date.is.null,end_date.gte.${new Date().toISOString()}`);
               
