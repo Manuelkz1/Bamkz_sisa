@@ -1,6 +1,7 @@
 // cartStore.ts
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { usePromotionStore } from './promotionStore';
 
 interface CartItem {
   id: string;
@@ -9,6 +10,7 @@ interface CartItem {
   image: string;
   quantity: number;
   promotion?: {
+    id?: string;
     type: string;
     value?: number;
   };
@@ -34,6 +36,7 @@ interface CartStore {
   clearCart: () => void;
   toggleCart: () => void;
   checkout: (shippingInfo: any) => Promise<any>;
+  applyPromotions: () => void;
 }
 
 export const useCartStore = create<CartStore>((set, get) => ({
@@ -55,38 +58,12 @@ export const useCartStore = create<CartStore>((set, get) => ({
         const { price, quantity } = item;
         
         if (type === 'discount') {
-          // Para descuentos, usamos un valor predeterminado hasta que se carguen los datos
-          finalPrice = price * 0.9; // Asumimos 10% de descuento por defecto
-          
-          // Función asíncrona para obtener el descuento real
-          const getDiscountPercent = async () => {
-            try {
-              const { data, error } = await supabase
-                .from('promotions')
-                .select('discount_percent')
-                .eq('id', item.id)
-                .single();
-              
-              if (!error && data) {
-                // Actualizar el precio con el descuento real
-                const discountedPrice = price * (1 - (data.discount_percent || 0) / 100);
-                // Actualizar el estado
-                const updatedItems = get().items.map(i => 
-                  i.id === item.id ? {...i, price: discountedPrice} : i
-                );
-                set({ items: updatedItems });
-              }
-            } catch (err) {
-              console.error('Error al obtener descuento:', err);
-            }
-          };
-          
-          // Llamar a la función asíncrona
-          getDiscountPercent();
+          // Para descuentos, usamos el valor proporcionado
+          finalPrice = price * (1 - (value || 10) / 100) * quantity;
         } else if (type === 'percentage') {
-          finalPrice = price * (1 - (value || 0) / 100);
+          finalPrice = price * (1 - (value || 0) / 100) * quantity;
         } else if (type === 'fixed') {
-          finalPrice = Math.max(0, price - (value || 0));
+          finalPrice = Math.max(0, price - (value || 0)) * quantity;
         } else if (type === '2x1' && quantity >= 2) {
           finalPrice = Math.floor(quantity / 2) * price + (quantity % 2) * price;
         } else if (type === '3x2' && quantity >= 3) {
@@ -114,6 +91,8 @@ export const useCartStore = create<CartStore>((set, get) => ({
     if (savedCart) {
       set({ items: JSON.parse(savedCart) });
     }
+    // Aplicar promociones al inicializar el carrito
+    get().applyPromotions();
   },
   
   saveCart: () => {
@@ -133,6 +112,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
       // Si es un producto nuevo, agregarlo al carrito
       set({ items: [...items, { ...product, quantity }] });
     }
+    
+    // Aplicar promociones después de modificar el carrito
+    get().applyPromotions();
     
     // Guardar carrito actualizado
     get().saveCart();
@@ -154,6 +136,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
       }
       
       set({ items: updatedItems });
+      
+      // Aplicar promociones después de modificar el carrito
+      get().applyPromotions();
+      
       get().saveCart();
     }
   },
@@ -166,6 +152,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
       const updatedItems = [...items];
       updatedItems.splice(index, 1);
       set({ items: updatedItems });
+      
+      // Aplicar promociones después de modificar el carrito
+      get().applyPromotions();
+      
       get().saveCart();
     }
   },
@@ -177,6 +167,45 @@ export const useCartStore = create<CartStore>((set, get) => ({
   
   toggleCart: () => {
     set(state => ({ showCart: !state.showCart }));
+  },
+  
+  // Nueva función para aplicar promociones activas a los productos del carrito
+  applyPromotions: () => {
+    const promotionStore = usePromotionStore.getState();
+    const activePromotions = promotionStore.getActivePromotions();
+    
+    if (activePromotions.length === 0) return;
+    
+    const updatedItems = get().items.map(item => {
+      // Buscar promociones aplicables a este producto
+      const applicablePromotion = activePromotions.find(promo => {
+        // Si la promoción tiene product_ids, verificar si este producto está incluido
+        if (promo.product_ids && promo.product_ids.length > 0) {
+          return promo.product_ids.includes(item.id);
+        }
+        
+        // Si la promoción tiene category_ids, verificar si este producto pertenece a alguna categoría
+        // Esto requeriría información adicional sobre las categorías del producto
+        
+        // Si no hay restricciones específicas, la promoción se aplica a todos los productos
+        return !promo.product_ids && !promo.category_ids;
+      });
+      
+      if (applicablePromotion) {
+        return {
+          ...item,
+          promotion: {
+            id: applicablePromotion.id,
+            type: applicablePromotion.type,
+            value: applicablePromotion.value
+          }
+        };
+      }
+      
+      return item;
+    });
+    
+    set({ items: updatedItems });
   },
   
   checkout: async (shippingInfo) => {
