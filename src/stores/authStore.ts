@@ -10,11 +10,32 @@ export const useAuthStore = create((set) => ({
     try {
       set({ loading: true, error: null })
       
-      // Simplificar la inicialización para evitar errores
+      // Obtener la sesión de Supabase
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
-        set({ user: session.user, loading: false })
+        // Obtener el rol del usuario desde la base de datos
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (userError) {
+          console.error('Error fetching user data:', userError)
+          // Si hay error al obtener el rol, usar los datos básicos del usuario
+          set({ user: session.user, loading: false })
+          return
+        }
+        
+        // Combinar los datos de autenticación con los datos del usuario (incluyendo el rol)
+        const userWithRole = {
+          ...session.user,
+          ...userData
+        }
+        
+        console.log('Usuario con rol cargado:', userWithRole)
+        set({ user: userWithRole, loading: false })
       } else {
         set({ user: null, loading: false })
       }
