@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Settings, Package, Tag, Truck } from 'lucide-react';
+import { Settings, Package, Tag, Truck, Box } from 'lucide-react';
 import OrderManager from './OrderManager';
 import PromotionManager from './PromotionManager';
+import ProductManager from './ProductManager';
 import { CompanySettings } from './CompanySettings';
 import { ShippingSettings } from './ShippingSettings';
 
@@ -25,6 +26,13 @@ export function AdminPanel() {
       icon: Package,
       component: OrderManager,
       roles: ['admin', 'fulfillment']
+    },
+    {
+      id: 'products',
+      name: 'Productos',
+      icon: Box,
+      component: ProductManager,
+      roles: ['admin']
     },
     {
       id: 'promotions',
