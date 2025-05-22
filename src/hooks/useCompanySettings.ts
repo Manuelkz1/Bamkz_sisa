@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, checkSupabaseConnection } from '../lib/supabase';
 
 interface CompanySettings {
   id: string;
@@ -26,6 +26,9 @@ const defaultSettings: Omit<CompanySettings, 'id' | 'updated_at'> = {
   dropshipping_shipping_cost: 0,
 };
 
+const RETRY_ATTEMPTS = 3;
+const BASE_DELAY = 1000; // 1 second
+
 export function useCompanySettings() {
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,21 +38,27 @@ export function useCompanySettings() {
     loadSettings();
   }, []);
 
-  const loadSettings = async () => {
+  const loadSettings = async (attempt = 0) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      setError(null);
+
+      // Check connection health before attempting to fetch
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        throw new Error('Unable to connect to database');
+      }
+
+      const { data, error: fetchError } = await supabase
         .from('company_settings')
         .select('*')
         .limit(1);
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
       
       if (data && data.length > 0) {
-        // Use the first row if exists
         setSettings(data[0]);
       } else {
-        // If no settings exist, use default values
         console.log('No company settings found, using defaults');
         setSettings({
           id: 'default',
@@ -58,14 +67,31 @@ export function useCompanySettings() {
         });
       }
       
-      setError(null);
     } catch (error: any) {
       console.error('Error loading company settings:', error);
-      setError('Error loading company settings');
+
+      // Implement retry with exponential backoff
+      if (attempt < RETRY_ATTEMPTS) {
+        const delay = BASE_DELAY * Math.pow(2, attempt);
+        console.log(`Retrying in ${delay}ms (attempt ${attempt + 1}/${RETRY_ATTEMPTS})`);
+        
+        setTimeout(() => {
+          loadSettings(attempt + 1);
+        }, delay);
+        
+        return;
+      }
+
+      setError(error.message || 'Error loading company settings');
     } finally {
       setLoading(false);
     }
   };
 
-  return { settings, loading, error, reload: loadSettings };
+  return { 
+    settings, 
+    loading, 
+    error, 
+    reload: () => loadSettings(0) 
+  };
 }
