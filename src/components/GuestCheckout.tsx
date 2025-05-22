@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-import { toast } from "react-hot-toast";
-import { ArrowLeft, Truck, CreditCard } from "lucide-react";
-import { useCartStore } from "../stores/cartStore";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
+import { ArrowLeft, Truck, CreditCard } from 'lucide-react';
+import { useCartStore } from '../stores/cartStore';
 
 interface GuestCheckoutProps {
   onBack: () => void;
@@ -70,7 +70,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
           shipping_address: { full_name: formData.fullName, address: formData.address, city: formData.city, postal_code: formData.postalCode, country: formData.country, phone: formData.phone },
           payment_method: formData.paymentMethod,
           total: currentCartTotal,
-          status: "pending", // Initial status
+          status: "pending",
           payment_status: "pending"
         })
         .select()
@@ -125,7 +125,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
             quantity: item.quantity,
           })),
           total: currentCartTotal,
-          payer_email: formData.email // Pass payer email for Mercado Pago
+          payer_email: formData.email
         };
         const { data: paymentData, error: paymentError } = await supabase.functions.invoke("create-payment", { body: paymentPayload });
         toast.dismiss();
@@ -285,3 +285,4 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
   );
 }
 
+export default GuestCheckout;
