@@ -13,6 +13,7 @@ interface CartItem {
     id?: string;
     type: string;
     value?: number;
+    total_price?: number; // Added for discount-type promotions
   };
 }
 
@@ -54,12 +55,12 @@ export const useCartStore = create<CartStore>((set, get) => ({
       let finalPrice = item.price;
       
       if (item.promotion) {
-        const { type, value } = item.promotion;
+        const { type, value, total_price } = item.promotion;
         const { price, quantity } = item;
         
-        if (type === 'discount') {
-          // Para descuentos, usamos el valor proporcionado
-          finalPrice = price * (1 - (value || 10) / 100) * quantity;
+        if (type === 'discount' && total_price) {
+          // Para descuentos de precio fijo, usar el precio promocional
+          finalPrice = total_price * quantity;
         } else if (type === 'percentage') {
           finalPrice = price * (1 - (value || 0) / 100) * quantity;
         } else if (type === 'fixed') {
@@ -197,7 +198,8 @@ export const useCartStore = create<CartStore>((set, get) => ({
           promotion: {
             id: applicablePromotion.id,
             type: applicablePromotion.type,
-            value: applicablePromotion.value
+            value: applicablePromotion.value,
+            total_price: applicablePromotion.total_price
           }
         };
       }

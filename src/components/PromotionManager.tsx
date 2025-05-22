@@ -16,13 +16,14 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const [promotionForm, setPromotionForm] = useState({
     name: '',
     description: '',
-    type: '2x1' as '2x1' | '3x1' | '3x2',
+    type: '2x1' as '2x1' | '3x1' | '3x2' | 'discount',
     start_date: '',
     end_date: '',
     active: true,
     product_ids: [] as string[],
     buy_quantity: 2,
-    get_quantity: 1
+    get_quantity: 1,
+    total_price: 0
   });
 
   useEffect(() => {
@@ -61,13 +62,14 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     setPromotionForm({
       name: promotion.name || '',
       description: promotion.description || '',
-      type: promotion.type as '2x1' | '3x1' | '3x2',
+      type: promotion.type as '2x1' | '3x1' | '3x2' | 'discount',
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
       active: promotion.active || false,
       product_ids: promotion.product_ids || [],
       buy_quantity: promotion.buy_quantity || 2,
-      get_quantity: promotion.get_quantity || 1
+      get_quantity: promotion.get_quantity || 1,
+      total_price: promotion.total_price || 0
     });
   };
 
@@ -82,11 +84,12 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       active: true,
       product_ids: [],
       buy_quantity: 2,
-      get_quantity: 1
+      get_quantity: 1,
+      total_price: 0
     });
   };
 
-  const handleTypeChange = (type: '2x1' | '3x1' | '3x2') => {
+  const handleTypeChange = (type: '2x1' | '3x1' | '3x2' | 'discount') => {
     let buy_quantity = 2;
     let get_quantity = 1;
     
@@ -126,6 +129,12 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         setFormSubmitting(false);
         return;
       }
+      
+      if (promotionForm.type === 'discount' && (!promotionForm.total_price || promotionForm.total_price <= 0)) {
+        toast.error('Debes ingresar un precio promocional válido mayor que cero');
+        setFormSubmitting(false);
+        return;
+      }
 
       const promotionData: Promotion = {
         id: editingPromotion?.id,
@@ -138,6 +147,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         product_ids: promotionForm.product_ids,
         buy_quantity: promotionForm.buy_quantity,
         get_quantity: promotionForm.get_quantity,
+        total_price: promotionForm.type === 'discount' ? promotionForm.total_price : undefined,
         created_at: editingPromotion?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -223,41 +233,66 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               <label className="block text-sm font-medium mb-1">Tipo de Promoción</label>
               <select
                 value={promotionForm.type}
-                onChange={(e) => handleTypeChange(e.target.value as '2x1' | '3x1' | '3x2')}
+                onChange={(e) => handleTypeChange(e.target.value as '2x1' | '3x1' | '3x2' | 'discount')}
                 className="w-full p-2 border rounded"
               >
                 <option value="2x1">2x1 (Lleva 2, paga 1)</option>
                 <option value="3x2">3x2 (Lleva 3, paga 2)</option>
                 <option value="3x1">3x1 (Lleva 3, paga 1)</option>
+                <option value="discount">Descuento (Precio fijo promocional)</option>
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {promotionForm.type !== 'discount' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Comprar (cantidad)</label>
+                  <input
+                    type="number"
+                    value={promotionForm.buy_quantity}
+                    readOnly
+                    className="w-full p-2 border rounded bg-gray-100"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se establece automáticamente según el tipo
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Llevar (cantidad)</label>
+                  <input
+                    type="number"
+                    value={promotionForm.get_quantity}
+                    readOnly
+                    className="w-full p-2 border rounded bg-gray-100"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se establece automáticamente según el tipo
+                  </p>
+                </div>
+              </div>
+            ) : (
               <div>
-                <label className="block text-sm font-medium mb-1">Comprar (cantidad)</label>
-                <input
-                  type="number"
-                  value={promotionForm.buy_quantity}
-                  readOnly
-                  className="w-full p-2 border rounded bg-gray-100"
-                />
+                <label className="block text-sm font-medium mb-1">Precio Promocional</label>
+                <div className="flex items-center">
+                  <span className="text-gray-500 mr-2">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={promotionForm.total_price}
+                    onChange={(e) => setPromotionForm(prev => ({ 
+                      ...prev, 
+                      total_price: parseFloat(e.target.value) || 0 
+                    }))}
+                    className="w-full p-2 border rounded"
+                    required={promotionForm.type === 'discount'}
+                  />
+                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Se establece automáticamente según el tipo
+                  Ingresa el precio final con descuento (no el porcentaje)
                 </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Llevar (cantidad)</label>
-                <input
-                  type="number"
-                  value={promotionForm.get_quantity}
-                  readOnly
-                  className="w-full p-2 border rounded bg-gray-100"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Se establece automáticamente según el tipo
-                </p>
-              </div>
-            </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium mb-1">Fecha de inicio</label>
@@ -374,6 +409,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                     Tipo: {promotion.type === '2x1' ? 'Lleva 2, paga 1' :
                           promotion.type === '3x2' ? 'Lleva 3, paga 2' :
                           promotion.type === '3x1' ? 'Lleva 3, paga 1' :
+                          promotion.type === 'discount' ? 'Descuento (Precio fijo: $' + promotion.total_price + ')' :
                           promotion.type}
                   </p>
                   <p>

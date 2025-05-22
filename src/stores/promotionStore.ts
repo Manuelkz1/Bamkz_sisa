@@ -5,7 +5,7 @@ export interface Promotion {
   id?: string;
   name: string;
   description?: string;
-  type: '2x1' | '3x2' | '3x1';
+  type: '2x1' | '3x2' | '3x1' | 'discount';
   active: boolean;
   start_date?: string | null;
   end_date?: string | null;
@@ -14,6 +14,7 @@ export interface Promotion {
   updated_at?: string;
   buy_quantity: number;
   get_quantity: number;
+  total_price?: number; // New field for discount type
 }
 
 interface PromotionStore {
@@ -98,6 +99,7 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
           end_date: promotion.end_date || null,
           buy_quantity: promotion.buy_quantity,
           get_quantity: promotion.get_quantity,
+          total_price: promotion.total_price,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])

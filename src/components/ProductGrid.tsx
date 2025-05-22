@@ -40,6 +40,8 @@ function calculateEffectiveDiscount(promo: Promotion, price: number): number {
       return price * (1/3); // 33.33% de descuento efectivo
     case '3x1':
       return price * (2/3); // 66.67% de descuento efectivo
+    case 'discount':
+      return price - (promo.total_price || 0); // Descuento basado en precio fijo
     default:
       return 0;
   }
@@ -137,7 +139,7 @@ export function ProductGrid() {
               .from('promotions')
               .select('*')
               .in('id', promotionIds)
-              .eq('is_active', true)
+              .eq('active', true)
               .or(`start_date.is.null,start_date.lte.${new Date().toISOString()}`)
               .or(`end_date.is.null,end_date.gte.${new Date().toISOString()}`);
               
@@ -334,7 +336,22 @@ export function ProductGrid() {
                 <div className="flex flex-col">
                   {productPromotions[product.id] ? (
                     <>
-                      {productPromotions[product.id].type === '2x1' || productPromotions[product.id].type === '3x1' || productPromotions[product.id].type === '3x2' ? (
+                      {productPromotions[product.id].type === 'discount' ? (
+                        <>
+                          <div className="flex items-center">
+                            <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
+                            <span className="text-xl sm:text-2xl font-bold text-red-600">
+                              ${productPromotions[product.id].total_price?.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            <Tag className="h-3 w-3 mr-1" />
+                            Precio promocional
+                          </div>
+                        </>
+                      ) : productPromotions[product.id].type === '2x1' || 
+                         productPromotions[product.id].type === '3x1' || 
+                         productPromotions[product.id].type === '3x2' ? (
                         <>
                           <span className="text-xl sm:text-2xl font-bold text-indigo-600">${product.price.toFixed(2)}</span>
                           <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -342,32 +359,6 @@ export function ProductGrid() {
                             {productPromotions[product.id].type === '2x1' && 'Compra 2, paga 1'}
                             {productPromotions[product.id].type === '3x1' && 'Compra 3, paga 1'}
                             {productPromotions[product.id].type === '3x2' && 'Compra 3, paga 2'}
-                          </div>
-                        </>
-                      ) : productPromotions[product.id].type === 'percentage' ? (
-                        <>
-                          <div className="flex items-center">
-                            <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
-                            <span className="text-xl sm:text-2xl font-bold text-red-600">
-                              ${(product.price * (1 - productPromotions[product.id].value / 100)).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            <Tag className="h-3 w-3 mr-1" />
-                            {productPromotions[product.id].value}% de descuento
-                          </div>
-                        </>
-                      ) : productPromotions[product.id].type === 'fixed' ? (
-                        <>
-                          <div className="flex items-center">
-                            <span className="text-xs sm:text-sm text-gray-500 line-through mr-2">${product.price.toFixed(2)}</span>
-                            <span className="text-xl sm:text-2xl font-bold text-red-600">
-                              ${Math.max(0, product.price - productPromotions[product.id].value).toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            <Tag className="h-3 w-3 mr-1" />
-                            ${productPromotions[product.id].value} de descuento
                           </div>
                         </>
                       ) : (

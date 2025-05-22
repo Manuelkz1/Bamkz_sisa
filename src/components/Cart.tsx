@@ -17,12 +17,12 @@ export default function Cart() {
       case '2x1': return 'Compra 2, paga 1';
       case '3x1': return 'Compra 3, paga 1';
       case '3x2': return 'Compra 3, paga 2';
-      case 'discount': return '20% de descuento';
+      case 'discount': return 'Precio promocional';
       default: return 'Promoción especial';
     }
   };
 
-  const totalDiscount = cartStore.promotionsApplied.reduce((sum, promo) => sum + promo.discount, 0);
+  const totalDiscount = cartStore.promotionsApplied ? cartStore.promotionsApplied.reduce((sum, promo) => sum + (promo.discount || 0), 0) : 0;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -55,7 +55,7 @@ export default function Cart() {
             <>
               <div className="flex-1 overflow-y-auto px-4 py-6">
                 {cartStore.items.map((item) => {
-                  const promotion = findPromotion(item.product.id);
+                  const promotion = item.promotion;
                   return (
                     <div key={item.product.id} className="flex py-6">
                       <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border">
@@ -74,7 +74,7 @@ export default function Cart() {
                                 {promotion.type === 'discount' ? (
                                   <>
                                     <p className="text-sm text-gray-500 line-through">${item.product.price}</p>
-                                    <p className="text-red-600">${(item.product.price * 0.8).toFixed(2)}</p>
+                                    <p className="text-red-600">${(promotion.total_price || 0).toFixed(2)}</p>
                                   </>
                                 ) : (
                                   <p>${item.product.price}</p>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, ShoppingCart, FileText, Share2, Tag } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, FileText, Share2, Tag } from 'lucide-react';
 import type { Product, Promotion } from '../types';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -127,25 +127,35 @@ export default function ProductDetail() {
   const getDiscountedPrice = () => {
     if (!product || !activePromotion) return null;
     
+    if (activePromotion.type === 'discount' && activePromotion.total_price) {
+      return activePromotion.total_price.toFixed(2);
+    }
+    
     if (activePromotion.total_price) {
       return activePromotion.total_price;
     }
     
-    if (activePromotion.type === 'discount') {
-      const discountPercent = activePromotion.discount_percent || 20;
-      const discountMultiplier = (100 - discountPercent) / 100;
-      return (product.price * discountMultiplier).toFixed(2);
-    }
-    
-    if (['2x1', '3x1', '3x2'].includes(activePromotion.type)) {
-      if (quantity >= activePromotion.buy_quantity) {
-        const fullPriceSets = Math.floor(quantity / activePromotion.buy_quantity);
-        const remainder = quantity % activePromotion.buy_quantity;
-        
-        const paidItems = (fullPriceSets * activePromotion.get_quantity) + remainder;
-        
-        return (paidItems * product.price).toFixed(2);
-      }
+    if (activePromotion.type === '2x1' && quantity >= 2) {
+      const fullPriceSets = Math.floor(quantity / 2);
+      const remainder = quantity % 2;
+      
+      const paidItems = fullPriceSets + remainder;
+      
+      return (paidItems * product.price).toFixed(2);
+    } else if (activePromotion.type === '3x2' && quantity >= 3) {
+      const fullPriceSets = Math.floor(quantity / 3);
+      const remainder = quantity % 3;
+      
+      const paidItems = (fullPriceSets * 2) + remainder;
+      
+      return (paidItems * product.price).toFixed(2);
+    } else if (activePromotion.type === '3x1' && quantity >= 3) {
+      const fullPriceSets = Math.floor(quantity / 3);
+      const remainder = quantity % 3;
+      
+      const paidItems = fullPriceSets + remainder;
+      
+      return (paidItems * product.price).toFixed(2);
     }
     
     return (quantity * product.price).toFixed(2);
@@ -256,10 +266,10 @@ export default function ProductDetail() {
                         </div>
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
                           <Tag className="h-4 w-4 mr-1" />
-                          {activePromotion.discount_percent || 20}% de descuento
+                          Precio promocional
                         </div>
                       </div>
-                    ) : (
+                    ) : activePromotion.type === '2x1' || activePromotion.type === '3x1' || activePromotion.type === '3x2' ? (
                       <div className="flex flex-col">
                         {quantity >= activePromotion.buy_quantity ? (
                           <>
@@ -288,6 +298,8 @@ export default function ProductDetail() {
                           </>
                         )}
                       </div>
+                    ) : (
+                      <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
                     )}
                   </>
                 ) : (
@@ -394,7 +406,7 @@ export default function ProductDetail() {
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  <ShoppingBag className="h-5 w-5 mr-2" />
                   Agregar al carrito
                 </button>
 

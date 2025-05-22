@@ -98,7 +98,7 @@ export interface Promotion {
   id?: string;
   name: string;
   description?: string;
-  type: '2x1' | '3x1' | '3x2';
+  type: '2x1' | '3x1' | '3x2' | 'discount';
   active: boolean;
   start_date: string | null;
   end_date: string | null;
@@ -107,4 +107,5 @@ export interface Promotion {
   buy_quantity: number;
   get_quantity: number;
   product_ids?: string[];
+  total_price?: number; // New field for discount type promotions
 }
