@@ -32,6 +32,7 @@ interface CartStore {
   initCart: () => void;
   saveCart: () => void;
   addToCart: (product: CartItem, quantity?: number) => void;
+  addItem: (product: any, quantity?: number, selectedColor?: string) => void; // Added this function
   updateQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
@@ -125,6 +126,22 @@ export const useCartStore = create<CartStore>((set, get) => ({
     
     // Guardar carrito actualizado
     get().saveCart();
+  },
+  
+  // Added this function to fix the error
+  addItem: (product, quantity = 1, selectedColor) => {
+    // Create a cart item from the product with the selected color info if needed
+    const cartItem = {
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.images?.[0] || '',
+      quantity: quantity,
+      selectedColor: selectedColor
+    };
+    
+    // Call the existing addToCart function
+    get().addToCart(cartItem, quantity);
   },
   
   updateQuantity: (productId, quantity) => {
