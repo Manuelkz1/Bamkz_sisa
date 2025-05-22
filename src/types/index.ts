@@ -95,7 +95,7 @@ export interface PaymentMethod {
 }
 
 export interface Promotion {
-  id: string;
+  id?: string;
   name: string;
   description?: string;
   type: '2x1' | '3x1' | '3x2';

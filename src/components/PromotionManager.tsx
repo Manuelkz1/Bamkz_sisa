@@ -12,6 +12,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const promotionStore = usePromotionStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
   const [promotionForm, setPromotionForm] = useState({
     name: '',
     description: '',
@@ -58,15 +59,15 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     setPromotionForm({
-      name: promotion.name,
+      name: promotion.name || '',
       description: promotion.description || '',
-      type: promotion.type,
+      type: promotion.type as '2x1' | '3x1' | '3x2',
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
-      active: promotion.active,
+      active: promotion.active || false,
       product_ids: promotion.product_ids || [],
-      buy_quantity: promotion.buy_quantity,
-      get_quantity: promotion.get_quantity
+      buy_quantity: promotion.buy_quantity || 2,
+      get_quantity: promotion.get_quantity || 1
     });
   };
 
@@ -112,26 +113,33 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     e.preventDefault();
     
     try {
+      setFormSubmitting(true);
+      
       if (!promotionForm.name.trim()) {
         toast.error('El nombre de la promoción es obligatorio');
+        setFormSubmitting(false);
         return;
       }
 
       if (promotionForm.product_ids.length === 0) {
         toast.error('Debes seleccionar al menos un producto');
+        setFormSubmitting(false);
         return;
       }
 
       const promotionData: Promotion = {
+        id: editingPromotion?.id,
         name: promotionForm.name.trim(),
-        description: promotionForm.description.trim(),
+        description: promotionForm.description.trim() || undefined,
         type: promotionForm.type,
         active: promotionForm.active,
         start_date: promotionForm.start_date || null,
         end_date: promotionForm.end_date || null,
         product_ids: promotionForm.product_ids,
         buy_quantity: promotionForm.buy_quantity,
-        get_quantity: promotionForm.get_quantity
+        get_quantity: promotionForm.get_quantity,
+        created_at: editingPromotion?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       let result;
@@ -154,6 +162,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     } catch (error: any) {
       console.error('Error saving promotion:', error);
       toast.error('Error al guardar la promoción: ' + (error.message || 'Error desconocido'));
+    } finally {
+      setFormSubmitting(false);
     }
   };
 
@@ -305,9 +315,12 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
             <div className="flex space-x-4">
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                disabled={formSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {editingPromotion ? 'Actualizar' : 'Crear'} Promoción
+                {formSubmitting 
+                  ? 'Procesando...' 
+                  : (editingPromotion ? 'Actualizar' : 'Crear') + ' Promoción'}
               </button>
               
               {editingPromotion && (
