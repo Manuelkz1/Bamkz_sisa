@@ -51,7 +51,18 @@ export default function Cart() {
                       <div>
                         <div className="flex justify-between text-base font-medium text-gray-900">
                           <h3>{item.product.name}</h3>
-                          <p className="ml-4">${item.product.price.toFixed(2)}</p>
+                          {item.product.promotion?.type === 'discount' ? (
+                            <div className="text-right">
+                              <p className="text-sm text-gray-500 line-through">
+                                ${(item.product.price * item.quantity).toFixed(2)}
+                              </p>
+                              <p className="text-red-600">
+                                ${(item.product.promotion.total_price * item.quantity).toFixed(2)}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="ml-4">${(item.product.price * item.quantity).toFixed(2)}</p>
+                          )}
                         </div>
                         {item.selectedColor && (
                           <p className="mt-1 text-sm text-gray-500">

@@ -78,28 +78,27 @@ export const useCartStore = create<CartStore>()(
           const { product, quantity } = item;
           
           if (product.promotion) {
-            const { type } = product.promotion;
-            
-            if (type === '2x1' && quantity >= 2) {
+            if (product.promotion.type === 'discount' && product.promotion.total_price) {
+              // Use fixed promotional price
+              total += product.promotion.total_price * quantity;
+            } else if (product.promotion.type === '2x1' && quantity >= 2) {
+              // For 2x1, pay for half of the items (rounded up)
               const paidItems = Math.ceil(quantity / 2);
               total += paidItems * product.price;
-            } 
-            else if (type === '3x2' && quantity >= 3) {
+            } else if (product.promotion.type === '3x2' && quantity >= 3) {
+              // For 3x2, calculate sets and remaining items
               const sets = Math.floor(quantity / 3);
               const remainder = quantity % 3;
               const paidItems = (sets * 2) + remainder;
               total += paidItems * product.price;
-            }
-            else if (type === '3x1' && quantity >= 3) {
+            } else if (product.promotion.type === '3x1' && quantity >= 3) {
+              // For 3x1, pay for one item per set plus remaining items
               const sets = Math.floor(quantity / 3);
               const remainder = quantity % 3;
               const paidItems = sets + remainder;
               total += paidItems * product.price;
-            }
-            else if (type === 'discount' && product.promotion.total_price) {
-              total += product.promotion.total_price * quantity;
-            }
-            else {
+            } else {
+              // If no promotion conditions are met, use regular price
               total += product.price * quantity;
             }
           } else {
