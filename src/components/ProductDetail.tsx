@@ -99,7 +99,9 @@ export default function ProductDetail() {
     }
   };
 
-  const handleAddToCart = (qty: number = 1) => {
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevenir la navegación por defecto
+    
     if (!product) return;
     
     if (product.available_colors?.length && !selectedColor) {
@@ -112,12 +114,14 @@ export default function ProductDetail() {
       ? { ...product, promotion: activePromotion } 
       : product;
 
-    cartStore.addItem(productWithPromotion, qty, selectedColor);
-    toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
+    cartStore.addItem(productWithPromotion, quantity, selectedColor);
+    toast.success(`${quantity} ${quantity > 1 ? 'unidades agregadas' : 'unidad agregada'} al carrito`);
     cartStore.toggleCart(); // Abrir el carrito después de agregar el producto
   };
 
-  const handleBuyNow = (qty: number = 1) => {
+  const handleBuyNow = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevenir la navegación por defecto
+    
     if (!product) return;
 
     if (product.available_colors?.length && !selectedColor) {
@@ -131,7 +135,7 @@ export default function ProductDetail() {
       : product;
 
     cartStore.clearCart();
-    cartStore.addItem(productWithPromotion, qty, selectedColor);
+    cartStore.addItem(productWithPromotion, quantity, selectedColor);
     navigate('/checkout');
   };
 
@@ -401,7 +405,7 @@ export default function ProductDetail() {
               
               <div className="flex sm:flex-row gap-4">
                 <button
-                  onClick={() => handleAddToCart(quantity)}
+                  onClick={handleAddToCart}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -410,7 +414,7 @@ export default function ProductDetail() {
                 </button>
 
                 <button
-                  onClick={() => handleBuyNow(quantity)}
+                  onClick={handleBuyNow}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
