@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Truck, Save, Lock } from 'lucide-react';
 import { useShippingSettings } from '../hooks/useShippingSettings';
@@ -9,6 +9,14 @@ export function ShippingSettings() {
   const [saving, setSaving] = useState(false);
   const [threshold, setThreshold] = useState(settings?.free_shipping_threshold || 100000);
   const [enabled, setEnabled] = useState(settings?.free_shipping_enabled || true);
+
+  // Sync local state with server state when settings change
+  useEffect(() => {
+    if (settings) {
+      setThreshold(settings.free_shipping_threshold);
+      setEnabled(settings.free_shipping_enabled);
+    }
+  }, [settings]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -29,11 +37,11 @@ export function ShippingSettings() {
       if (result.success) {
         toast.success('Configuración de envío actualizada');
       } else {
-        toast.error('Error al actualizar la configuración');
+        throw new Error(result.error || 'Error al actualizar la configuración');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving shipping settings:', error);
-      toast.error('Error al guardar la configuración');
+      toast.error(error.message || 'Error al guardar la configuración');
     } finally {
       setSaving(false);
     }

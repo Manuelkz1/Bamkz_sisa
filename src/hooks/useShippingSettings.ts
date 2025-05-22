@@ -35,6 +35,11 @@ export function useShippingSettings() {
   };
 
   const updateSettings = async (newSettings: Partial<ShippingSettings>) => {
+    if (!settings?.id) {
+      console.error('No settings ID available for update');
+      return { success: false, error: 'Settings not initialized' };
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -45,13 +50,15 @@ export function useShippingSettings() {
           ...newSettings,
           updated_at: new Date().toISOString()
         })
-        .eq('id', settings?.id)
+        .eq('id', settings.id)
         .select()
         .single();
 
       if (updateError) throw updateError;
+
+      // Update local state with the new settings
       setSettings(data);
-      return { success: true };
+      return { success: true, data };
     } catch (error: any) {
       console.error('Error updating shipping settings:', error);
       setError(error.message);
