@@ -8,7 +8,23 @@ interface CompanySettings {
   hero_title: string;
   hero_subtitle: string;
   updated_at: string;
+  logo_width?: number;
+  logo_height?: number;
+  maintain_ratio?: boolean;
+  dropshipping_shipping_cost?: number;
 }
+
+// Default settings to use when no row exists
+const defaultSettings: Omit<CompanySettings, 'id' | 'updated_at'> = {
+  name: 'Calidad Premium',
+  logo_url: null,
+  hero_title: 'Productos de Calidad Premium',
+  hero_subtitle: 'Descubre nuestra selección de productos exclusivos con la mejor calidad garantizada',
+  logo_width: 200,
+  logo_height: 60,
+  maintain_ratio: true,
+  dropshipping_shipping_cost: 0,
+};
 
 export function useCompanySettings() {
   const [settings, setSettings] = useState<CompanySettings | null>(null);
@@ -25,10 +41,23 @@ export function useCompanySettings() {
       const { data, error } = await supabase
         .from('company_settings')
         .select('*')
-        .single();
+        .limit(1);
 
       if (error) throw error;
-      setSettings(data);
+      
+      if (data && data.length > 0) {
+        // Use the first row if exists
+        setSettings(data[0]);
+      } else {
+        // If no settings exist, use default values
+        console.log('No company settings found, using defaults');
+        setSettings({
+          id: 'default',
+          updated_at: new Date().toISOString(),
+          ...defaultSettings
+        });
+      }
+      
       setError(null);
     } catch (error: any) {
       console.error('Error loading company settings:', error);
