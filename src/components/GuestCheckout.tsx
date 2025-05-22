@@ -50,46 +50,165 @@ export function GuestCheckout() {
 
   // Función para manejar la redirección a Mercado Pago de manera segura
   const redirectToMercadoPago = (url) => {
+    // Crear una página intermedia de redirección para máxima compatibilidad
+    const createRedirectPage = () => {
+      // Guardar la URL en sessionStorage para recuperarla después
+      sessionStorage.setItem('mercadopago_redirect_url', url);
+      
+      // Crear un documento HTML completo para la redirección
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>Redirigiendo a Mercado Pago</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              background-color: #f5f5f5;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              padding: 20px;
+              text-align: center;
+            }
+            .container {
+              background-color: white;
+              border-radius: 8px;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+              padding: 30px;
+              max-width: 500px;
+            }
+            h1 {
+              color: #3d4852;
+              margin-bottom: 20px;
+            }
+            p {
+              color: #606f7b;
+              margin-bottom: 30px;
+            }
+            .loader {
+              border: 5px solid #f3f3f3;
+              border-top: 5px solid #3498db;
+              border-radius: 50%;
+              width: 50px;
+              height: 50px;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 20px auto;
+            }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            .redirect-button {
+              background-color: #3490dc;
+              color: white;
+              border: none;
+              padding: 10px 20px;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 16px;
+              transition: background-color 0.3s;
+            }
+            .redirect-button:hover {
+              background-color: #2779bd;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="loader"></div>
+            <h1>Redirigiendo a Mercado Pago</h1>
+            <p>Estás siendo redirigido a la plataforma de pago. Si no eres redirigido automáticamente en unos segundos, haz clic en el botón de abajo.</p>
+            <button id="redirectButton" class="redirect-button">Ir a Mercado Pago</button>
+          </div>
+          
+          <script>
+            // Recuperar la URL de redirección
+            const redirectUrl = sessionStorage.getItem('mercadopago_redirect_url');
+            
+            // Función para redirigir usando diferentes métodos
+            function redirectToMercadoPago() {
+              console.log('Redirigiendo a:', redirectUrl);
+              
+              // Método 1: Redirección directa
+              window.location.href = redirectUrl;
+              
+              // Método 2: Fallback con setTimeout
+              setTimeout(function() {
+                if (window.location.href.indexOf('mercadopago') === -1) {
+                  console.log('Activando fallback 1');
+                  window.location.replace(redirectUrl);
+                }
+              }, 500);
+              
+              // Método 3: Fallback con formulario
+              setTimeout(function() {
+                if (window.location.href.indexOf('mercadopago') === -1) {
+                  console.log('Activando fallback 2');
+                  const form = document.createElement('form');
+                  form.method = 'GET';
+                  form.action = redirectUrl;
+                  form.target = '_self';
+                  document.body.appendChild(form);
+                  form.submit();
+                }
+              }, 1000);
+              
+              // Método 4: Último recurso
+              setTimeout(function() {
+                if (window.location.href.indexOf('mercadopago') === -1) {
+                  console.log('Activando fallback 3');
+                  window.open(redirectUrl, '_self');
+                }
+              }, 1500);
+            }
+            
+            // Redirigir automáticamente después de un breve retraso
+            setTimeout(redirectToMercadoPago, 1000);
+            
+            // Configurar el botón de redirección manual
+            document.getElementById('redirectButton').addEventListener('click', function(e) {
+              e.preventDefault();
+              redirectToMercadoPago();
+            });
+          </script>
+        </body>
+        </html>
+      `;
+      
+      // Crear un blob con el HTML
+      const blob = new Blob([html], { type: 'text/html' });
+      
+      // Crear una URL para el blob
+      return URL.createObjectURL(blob);
+    };
+    
     // Desactivar cualquier interacción adicional
     document.body.style.pointerEvents = 'none';
     
     // Mostrar un mensaje de redirección
     toast.success('Redirigiendo a Mercado Pago...');
     
-    console.log('Redirigiendo a:', url);
+    console.log('Preparando redirección a:', url);
     
-    // Método 1: Redirección directa (compatible con Chrome)
-    window.location.href = url;
-    
-    // Método 2: Fallback con formulario POST (máxima compatibilidad)
-    setTimeout(() => {
-      try {
-        if (window.location.href.indexOf('pago') === -1) {
-          console.log('Activando fallback con formulario POST');
-          
-          // Crear un formulario y enviarlo automáticamente
-          const form = document.createElement('form');
-          form.method = 'GET';
-          form.action = url;
-          form.target = '_self';
-          form.style.display = 'none';
-          
-          document.body.appendChild(form);
-          form.submit();
-          
-          // Limpiar después del envío
-          setTimeout(() => {
-            if (document.body.contains(form)) {
-              document.body.removeChild(form);
-            }
-          }, 100);
-        }
-      } catch (e) {
-        console.error('Error en fallback de redirección:', e);
-        // Último recurso: abrir en nueva ventana
-        window.open(url, '_self');
-      }
-    }, 500);
+    try {
+      // Crear la página de redirección y navegar a ella
+      const redirectPageUrl = createRedirectPage();
+      console.log('Página de redirección creada:', redirectPageUrl);
+      
+      // Navegar a la página de redirección
+      window.location.href = redirectPageUrl;
+    } catch (e) {
+      console.error('Error al crear página de redirección:', e);
+      
+      // Fallback directo en caso de error
+      console.log('Usando método de redirección directo como fallback');
+      window.location.href = url;
+    }
   };
 
   const handleSubmit = async (e) => {
