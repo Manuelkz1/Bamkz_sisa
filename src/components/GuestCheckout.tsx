@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -39,7 +39,7 @@ export function GuestCheckout() {
   }, [formData]);
 
   // Referencia para controlar si el componente está montado
-  const isMounted = React.useRef(true);
+  const isMounted = useRef(true);
   
   // Limpiar la referencia cuando el componente se desmonte
   useEffect(() => {
@@ -202,6 +202,21 @@ export function GuestCheckout() {
       
       // Navegar a la página de redirección
       window.location.href = redirectPageUrl;
+
+      // Método específico para Chrome
+      if (navigator.userAgent.indexOf('Chrome') > -1) {
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_self';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+          }, 100);
+        }, 100);
+      }
     } catch (e) {
       console.error('Error al crear página de redirección:', e);
       
