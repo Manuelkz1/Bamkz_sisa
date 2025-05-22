@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { MercadoPagoConfig, Preference } from "npm:mercadopago@2.0.8";
+import { createClient } from "npm:@supabase/supabase-js@2.39.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +9,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 204,
@@ -33,6 +33,24 @@ serve(async (req) => {
       );
     }
 
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Get order details
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      console.error('Error fetching order:', orderError);
+      throw new Error('Error al obtener detalles del pedido');
+    }
+
     const accessToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
     if (!accessToken) {
       console.error('MercadoPago access token not configured');
@@ -49,6 +67,13 @@ serve(async (req) => {
     const origin = req.headers.get('origin') || 'https://xawsitihehpebojtkunk.supabase.co';
     console.log('Using origin:', origin);
 
+    // Get customer name parts
+    const fullName = order.shipping_address?.full_name || order.guest_info?.full_name || '';
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || 'Guest';
+    const lastName = nameParts.slice(1).join(' ') || 'Customer';
+    const email = order.guest_info?.email || 'guest@example.com';
+
     // Construct preference data
     const preferenceData = {
       items: items.map(item => ({
@@ -58,6 +83,18 @@ serve(async (req) => {
         unit_price: Number(item.product.price),
         description: `Orden #${orderId}`,
       })),
+      payer: {
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        phone: {
+          number: order.shipping_address?.phone || order.guest_info?.phone
+        },
+        address: {
+          street_name: order.shipping_address?.address,
+          zip_code: order.shipping_address?.postal_code
+        }
+      },
       back_urls: {
         success: `${origin}/pago?status=approved&order_id=${orderId}`,
         failure: `${origin}/pago?status=rejected&order_id=${orderId}`,
