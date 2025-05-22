@@ -115,29 +115,28 @@ export default function ProductDetail() {
 
     cartStore.addItem(productWithPromotion, quantity, selectedColor);
 
-    toast((t) => (
-      <div className="flex items-center bg-indigo-600 text-white px-6 py-4 rounded-lg shadow-lg">
-        <div className="flex-shrink-0 mr-4">
-          <ShoppingCart className="h-6 w-6" />
-        </div>
-        <div className="flex-1">
-          <p className="font-semibold text-lg">¡Producto agregado!</p>
-          <p className="text-sm opacity-90">
+    toast.success(
+      <div className="flex items-center">
+        <ShoppingCart className="h-5 w-5 mr-2" />
+        <div>
+          <p className="font-medium">¡Producto agregado al carrito!</p>
+          <p className="text-sm">
             {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
             {selectedColor && ` (${selectedColor})`}
           </p>
         </div>
-      </div>
-    ), {
-      duration: 3000,
-      position: 'top-center',
-      style: {
-        background: 'none',
-        boxShadow: 'none',
-        border: 'none',
-        padding: 0,
-      },
-    });
+      </div>,
+      {
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: '#4F46E5',
+          color: '#ffffff',
+          padding: '1rem',
+          borderRadius: '0.5rem',
+        },
+      }
+    );
 
     cartStore.toggleCart();
   };
