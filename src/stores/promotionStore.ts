@@ -8,8 +8,8 @@ export interface Promotion {
   type: 'percentage' | 'fixed' | '2x1' | '3x2' | '3x1';
   value?: number;
   active: boolean;
-  start_date?: string;
-  end_date?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   product_ids?: string[];
   created_at?: string;
   updated_at?: string;

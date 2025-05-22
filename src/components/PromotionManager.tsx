@@ -118,8 +118,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         type: promotionForm.type,
         value: promotionForm.value,
         active: promotionForm.active,
-        start_date: promotionForm.start_date || undefined,
-        end_date: promotionForm.end_date || undefined,
+        start_date: promotionForm.start_date || null,
+        end_date: promotionForm.end_date || null,
         product_ids: promotionForm.product_ids,
         buy_quantity: promotionForm.buy_quantity,
         get_quantity: promotionForm.get_quantity
@@ -138,6 +138,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         if (onPromotionCreated) {
           onPromotionCreated();
         }
+        await loadData(); // Reload data after successful creation/update
       } else {
         toast.error(result.error || 'Error al guardar la promoción');
       }
@@ -156,6 +157,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       const result = await promotionStore.deletePromotion(id);
       if (result.success) {
         toast.success('Promoción eliminada');
+        await loadData(); // Reload data after successful deletion
       } else {
         toast.error(result.error || 'Error al eliminar la promoción');
       }
