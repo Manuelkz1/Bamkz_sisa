@@ -11,7 +11,8 @@ import {
   TruckIcon, 
   CheckCircle, 
   XCircle, 
-  CreditCard 
+  CreditCard,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -49,69 +50,65 @@ const OrderManager: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Consulta básica para obtener solo los pedidos
+      // Get all orders with their items and product details
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          *,
+          order_items (
+            id,
+            quantity,
+            price_at_time,
+            selected_color,
+            products (
+              id,
+              name,
+              images
+            )
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (ordersError) {
-        console.error('Error al cargar pedidos:', ordersError);
-        setError('Error al cargar pedidos: ' + ordersError.message);
+        console.error('Error loading orders:', ordersError);
+        setError('Error loading orders: ' + ordersError.message);
         toast.error('Error al cargar los pedidos');
         setLoading(false);
         return;
       }
       
-      // Si no hay pedidos, establecer array vacío y terminar
       if (!ordersData || ordersData.length === 0) {
-        console.log('No se encontraron pedidos');
+        console.log('No orders found');
         setOrders([]);
         setLoading(false);
         return;
       }
       
-      console.log('Pedidos cargados:', ordersData.length);
-      
-      // Procesar los datos de los pedidos para asegurar compatibilidad
+      // Process orders to add customer info
       const processedOrders = ordersData.map(order => {
-        // Extraer información del cliente del objeto shipping_address o guest_info
-        const customerName = order.shipping_address?.full_name || 
-                            order.guest_info?.full_name || 
-                            'N/A';
-                            
-        const customerEmail = order.guest_info?.email || 
-                             (order.user_id ? 'Usuario registrado' : 'N/A');
-                             
-        // Asegurar que los campos requeridos estén presentes
+        // Extract customer info from shipping_address or guest_info
+        const customerName = order.shipping_address?.full_name || order.guest_info?.full_name || 'N/A';
+        const customerEmail = order.guest_info?.email || 'N/A';
+        const customerPhone = order.shipping_address?.phone || order.guest_info?.phone || 'N/A';
+        
         return {
           ...order,
-          // Añadir campos para compatibilidad
           customer_name: customerName,
           customer_email: customerEmail,
-          total_amount: order.total || 0,
-          notes: 'Sin notas adicionales',
-          // Asegurar que order_items existe
-          order_items: [],
-          // Convertir objetos a strings para visualización si es necesario
-          shipping_address: typeof order.shipping_address === 'object' 
-            ? `${order.shipping_address.full_name}, ${order.shipping_address.address}, ${order.shipping_address.city}` 
-            : order.shipping_address || 'No disponible'
+          customer_phone: customerPhone,
+          total_amount: order.total
         };
       });
       
-      // Establecer los pedidos con información procesada
       setOrders(processedOrders);
-      
-      // Limpiar selecciones
       setSelectedOrders([]);
       setSelectAll(false);
       
-      setLoading(false);
     } catch (error: any) {
-      console.error('Error general al cargar pedidos:', error);
-      setError('Error general: ' + error.message);
+      console.error('General error loading orders:', error);
+      setError('General error: ' + error.message);
       toast.error('Error al cargar los pedidos');
+    } finally {
       setLoading(false);
     }
   };
@@ -122,7 +119,7 @@ const OrderManager: React.FC = () => {
     }
 
     try {
-      // Primero eliminamos los items del pedido
+      // First delete order items
       const { error: itemsError } = await supabase
         .from('order_items')
         .delete()
@@ -130,7 +127,7 @@ const OrderManager: React.FC = () => {
 
       if (itemsError) throw itemsError;
 
-      // Luego eliminamos el pedido
+      // Then delete the order
       const { error } = await supabase
         .from('orders')
         .delete()
@@ -141,7 +138,7 @@ const OrderManager: React.FC = () => {
       toast.success('Pedido eliminado exitosamente');
       loadOrders();
       
-      // Si el pedido eliminado es el que estaba seleccionado, cerramos el modal
+      // If the deleted order was selected, close the modal
       if (selectedOrder?.id === orderId) {
         setShowOrderDetailModal(false);
         setSelectedOrder(null);
@@ -163,7 +160,7 @@ const OrderManager: React.FC = () => {
     try {
       setLoading(true);
       
-      // Primero eliminamos los items de los pedidos seleccionados
+      // First delete order items for all selected orders
       const { error: itemsError } = await supabase
         .from('order_items')
         .delete()
@@ -171,7 +168,7 @@ const OrderManager: React.FC = () => {
 
       if (itemsError) throw itemsError;
 
-      // Luego eliminamos los pedidos
+      // Then delete the orders
       const { error } = await supabase
         .from('orders')
         .delete()
@@ -181,7 +178,7 @@ const OrderManager: React.FC = () => {
       
       toast.success(`${selectedOrders.length} pedidos eliminados exitosamente`);
       
-      // Recargar pedidos y limpiar selecciones
+      // Reload orders and clear selections
       await loadOrders();
       
     } catch (error: any) {
@@ -196,10 +193,7 @@ const OrderManager: React.FC = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ 
-          status,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -212,58 +206,9 @@ const OrderManager: React.FC = () => {
   };
   
   const handleViewOrderDetails = async (order: Order) => {
-    console.log('Visualizando detalles del pedido:', order.id);
-    
-    try {
-      // Cargar datos completos del pedido para asegurar que tenemos toda la información
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', order.id)
-        .single();
-        
-      if (orderError) {
-        console.error('Error al cargar detalles del pedido:', orderError);
-        toast.error('Error al cargar detalles del pedido');
-        return;
-      }
-      
-      // Cargar items del pedido si existen
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('*, products(*)')
-        .eq('order_id', order.id);
-        
-      if (itemsError) {
-        console.error('Error al cargar items del pedido:', itemsError);
-      }
-      
-      // Combinar datos y establecer el pedido seleccionado
-      const completeOrder = {
-        ...orderData,
-        customer_name: orderData.shipping_address?.full_name || 
-                      orderData.guest_info?.full_name || 
-                      'N/A',
-        customer_email: orderData.guest_info?.email || 
-                       (orderData.user_id ? 'Usuario registrado' : 'N/A'),
-        customer_phone: orderData.shipping_address?.phone || 
-                       orderData.guest_info?.phone || 
-                       'N/A',
-        total_amount: orderData.total || 0,
-        shipping_address: typeof orderData.shipping_address === 'object' 
-          ? `${orderData.shipping_address.full_name}, ${orderData.shipping_address.address}, ${orderData.shipping_address.city}` 
-          : orderData.shipping_address || 'No disponible',
-        notes: 'Sin notas adicionales',
-        items: orderItems || []
-      };
-      
-      console.log('Pedido completo cargado:', completeOrder);
-      setSelectedOrder(completeOrder);
-      setShowOrderDetailModal(true);
-    } catch (error) {
-      console.error('Error general al cargar detalles del pedido:', error);
-      toast.error('Error al cargar detalles del pedido');
-    }
+    console.log('Viewing order details:', order.id);
+    setSelectedOrder(order);
+    setShowOrderDetailModal(true);
   };
 
   const toggleOrderExpand = (orderId: string) => {
@@ -292,15 +237,6 @@ const OrderManager: React.FC = () => {
     }
   };
 
-  const formatOrderDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
-    } catch (e) {
-      return 'Fecha inválida';
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -313,18 +249,28 @@ const OrderManager: React.FC = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-900">
-          Pedidos ({orders.length})
+          Pedidos
         </h2>
         
-        {selectedOrders.length > 0 && (
+        <div className="flex space-x-4">
           <button
-            onClick={() => setShowDeleteConfirmation(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            onClick={loadOrders}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
-            <Trash2 className="h-5 w-5 mr-2" />
-            Eliminar seleccionados ({selectedOrders.length})
+            <RefreshCw className="h-5 w-5 mr-2" />
+            Actualizar
           </button>
-        )}
+          
+          {selectedOrders.length > 0 && (
+            <button
+              onClick={() => setShowDeleteConfirmation(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              <Trash2 className="h-5 w-5 mr-2" />
+              Eliminar seleccionados ({selectedOrders.length})
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -341,30 +287,11 @@ const OrderManager: React.FC = () => {
       )}
 
       {orders.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <div className="p-6">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <h3 className="mt-2 text-lg font-medium text-gray-900">No hay pedidos disponibles</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              No se ha encontrado ningún pedido en el sistema.
-            </p>
-            <div className="mt-6">
-              <button
-                onClick={loadOrders}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                </svg>
-                Actualizar
-              </button>
-            </div>
-          </div>
+        <div className="text-center py-12">
+          <p className="text-gray-500">No hay pedidos disponibles.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto bg-white shadow rounded-lg">
+        <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -413,7 +340,7 @@ const OrderManager: React.FC = () => {
                         #{order.id.substring(0, 8)}
                       </div>
                       <div className="text-sm text-gray-500">
-                        ${order.total_amount ? Number(order.total_amount).toFixed(2) : (order.total ? Number(order.total).toFixed(2) : 'N/A')}
+                        ${order.total ? order.total.toFixed(2) : 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -435,7 +362,7 @@ const OrderManager: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatOrderDate(order.created_at)}
+                      {order.created_at ? format(new Date(order.created_at), 'dd/MM/yyyy HH:mm') : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
@@ -466,10 +393,10 @@ const OrderManager: React.FC = () => {
                     <tr>
                       <td colSpan={7} className="px-6 py-4 bg-gray-50">
                         <div className="text-sm text-gray-900 mb-2">
-                          <strong>Dirección de envío:</strong> {order.shipping_address || 'No disponible'}
+                          <strong>Dirección de envío:</strong> {order.shipping_address?.address || 'No disponible'}, {order.shipping_address?.city || ''}, {order.shipping_address?.country || ''}
                         </div>
                         <div className="text-sm text-gray-900 mb-2">
-                          <strong>Método de pago:</strong> {order.payment_method || 'No disponible'}
+                          <strong>Método de pago:</strong> {order.payment_method === 'cash_on_delivery' ? 'Pago contra entrega' : order.payment_method || 'No disponible'}
                         </div>
                         <div className="text-sm text-gray-900 mb-4">
                           <strong>Notas:</strong> {order.notes || 'Sin notas'}
@@ -521,7 +448,7 @@ const OrderManager: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de confirmación para eliminar múltiples pedidos */}
+      {/* Modal for delete confirmation */}
       {showDeleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
@@ -550,7 +477,7 @@ const OrderManager: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de detalles del pedido */}
+      {/* Order details modal */}
       {showOrderDetailModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -576,7 +503,7 @@ const OrderManager: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 mb-2">Información del Pedido</h4>
-                  <p className="text-sm text-gray-900">Fecha: {formatOrderDate(selectedOrder.created_at)}</p>
+                  <p className="text-sm text-gray-900">Fecha: {selectedOrder.created_at ? format(new Date(selectedOrder.created_at), 'dd/MM/yyyy HH:mm') : 'N/A'}</p>
                   <p className="text-sm text-gray-900">Estado: <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[selectedOrder.status]?.color || 'bg-gray-100 text-gray-800'}`}>
                     {ORDER_STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status}
                   </span></p>
@@ -589,12 +516,17 @@ const OrderManager: React.FC = () => {
 
             <div className="border-t border-gray-200 py-4">
               <h4 className="text-sm font-medium text-gray-500 mb-2">Dirección de Envío</h4>
-              <p className="text-sm text-gray-900">{selectedOrder.shipping_address || 'No disponible'}</p>
+              <p className="text-sm text-gray-900">
+                {selectedOrder.shipping_address?.address || 'No disponible'}, 
+                {selectedOrder.shipping_address?.city || ''}, 
+                {selectedOrder.shipping_address?.postal_code || ''}, 
+                {selectedOrder.shipping_address?.country || ''}
+              </p>
             </div>
 
             <div className="border-t border-gray-200 py-4">
               <h4 className="text-sm font-medium text-gray-500 mb-2">Productos</h4>
-              {selectedOrder.items && selectedOrder.items.length > 0 ? (
+              {selectedOrder.order_items && selectedOrder.order_items.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -614,7 +546,7 @@ const OrderManager: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedOrder.items.map((item, index) => (
+                      {selectedOrder.order_items.map((item, index) => (
                         <tr key={index}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
@@ -657,7 +589,7 @@ const OrderManager: React.FC = () => {
                           Total:
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          ${(selectedOrder.total_amount || selectedOrder.total || 0).toFixed(2)}
+                          ${selectedOrder.total?.toFixed(2) || 'N/A'}
                         </td>
                       </tr>
                     </tfoot>

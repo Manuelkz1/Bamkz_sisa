@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, ShoppingBag, FileText, Share2, Tag } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, FileText, Share2, Tag } from 'lucide-react';
 import type { Product, Promotion } from '../types';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
@@ -56,12 +56,12 @@ export default function ProductDetail() {
         .from('promotion_products')
         .select(`
           promotion:promotions(
-            id, name, type, buy_quantity, get_quantity, total_price, active, 
+            id, name, type, buy_quantity, get_quantity, total_price, is_active, 
             start_date, end_date, created_at, updated_at
           )
         `)
         .eq('product_id', id)
-        .filter('promotion.active', 'eq', true)
+        .filter('promotion.is_active', 'eq', true)
         .filter('promotion.start_date', 'lte', new Date().toISOString())
         .filter('promotion.end_date', 'gte', new Date().toISOString())
         .maybeSingle();
@@ -107,8 +107,12 @@ export default function ProductDetail() {
       return;
     }
 
-    console.log("Adding to cart:", product.name, qty, selectedColor);
-    cartStore.addItem(product, qty, selectedColor);
+    // Add promotion data to product if available
+    const productWithPromotion = activePromotion 
+      ? { ...product, promotion: activePromotion } 
+      : product;
+
+    cartStore.addItem(productWithPromotion, qty, selectedColor);
     toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
   };
 
@@ -120,54 +124,40 @@ export default function ProductDetail() {
       return;
     }
 
-    console.log("Buy now:", product.name, qty, selectedColor);
+    // Add promotion data to product if available
+    const productWithPromotion = activePromotion 
+      ? { ...product, promotion: activePromotion } 
+      : product;
+
     cartStore.clearCart();
-    cartStore.addItem(product, qty, selectedColor);
+    cartStore.addItem(productWithPromotion, qty, selectedColor);
     navigate('/checkout');
   };
 
   const getDiscountedPrice = () => {
     if (!product || !activePromotion) return null;
     
-    // Para promociones de precio fijo (discount)
-    if (activePromotion.type === 'discount' && activePromotion.total_price) {
-      return (activePromotion.total_price * quantity).toFixed(2);
+    if (activePromotion.total_price) {
+      return activePromotion.total_price;
     }
     
-    // Para promociones de tipo 2x1
-    if (activePromotion.type === '2x1' && quantity >= 2) {
-      const fullPriceSets = Math.floor(quantity / 2); // Cuántos pares completos
-      const remainder = quantity % 2; // Unidades sobrantes
-      
-      // Por cada par, solo paga 1 unidad + las unidades sobrantes
-      const totalPaidItems = fullPriceSets + remainder;
-      
-      return (totalPaidItems * product.price).toFixed(2);
+    if (activePromotion.type === 'discount') {
+      const discountPercent = activePromotion.discount_percent || 20;
+      const discountMultiplier = (100 - discountPercent) / 100;
+      return (product.price * discountMultiplier).toFixed(2);
     }
     
-    // Para promociones de tipo 3x2
-    if (activePromotion.type === '3x2' && quantity >= 3) {
-      const fullPriceSets = Math.floor(quantity / 3); // Cuántos tríos completos
-      const remainder = quantity % 3; // Unidades sobrantes
-      
-      // Por cada trío, solo paga 2 unidades + las unidades sobrantes
-      const totalPaidItems = (fullPriceSets * 2) + remainder;
-      
-      return (totalPaidItems * product.price).toFixed(2);
+    if (['2x1', '3x1', '3x2'].includes(activePromotion.type)) {
+      if (quantity >= activePromotion.buy_quantity) {
+        const fullPriceSets = Math.floor(quantity / activePromotion.buy_quantity);
+        const remainder = quantity % activePromotion.buy_quantity;
+        
+        const paidItems = (fullPriceSets * activePromotion.get_quantity) + remainder;
+        
+        return (paidItems * product.price).toFixed(2);
+      }
     }
     
-    // Para promociones de tipo 3x1
-    if (activePromotion.type === '3x1' && quantity >= 3) {
-      const fullPriceSets = Math.floor(quantity / 3); // Cuántos tríos completos
-      const remainder = quantity % 3; // Unidades sobrantes
-      
-      // Por cada trío, solo paga 1 unidad + las unidades sobrantes
-      const totalPaidItems = fullPriceSets + remainder;
-      
-      return (totalPaidItems * product.price).toFixed(2);
-    }
-    
-    // Si no hay suficientes unidades para la promoción o es otro tipo
     return (quantity * product.price).toFixed(2);
   };
   
@@ -192,7 +182,6 @@ export default function ProductDetail() {
           <button
             onClick={() => navigate('/')}
             className="mt-4 inline-flex items-center text-indigo-600 hover:text-indigo-500"
-            type="button"
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
             Volver al inicio
@@ -208,7 +197,6 @@ export default function ProductDetail() {
         <button
           onClick={() => navigate('/')}
           className="mb-8 inline-flex items-center text-gray-600 hover:text-gray-900"
-          type="button"
         >
           <ArrowLeft className="h-5 w-5 mr-2" />
           Volver
@@ -234,7 +222,6 @@ export default function ProductDetail() {
                     className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden ${
                       selectedImage === image ? 'ring-2 ring-indigo-500' : ''
                     }`}
-                    type="button"
                   >
                     <img
                       src={image}
@@ -257,7 +244,6 @@ export default function ProductDetail() {
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  type="button"
                 >
                   <Share2 className="h-4 w-4 mr-2" />
                   Compartir
@@ -280,12 +266,10 @@ export default function ProductDetail() {
                         </div>
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
                           <Tag className="h-4 w-4 mr-1" />
-                          Precio promocional
+                          {activePromotion.discount_percent || 20}% de descuento
                         </div>
                       </div>
-                    ) : activePromotion.type === '2x1' || 
-                         activePromotion.type === '3x1' || 
-                         activePromotion.type === '3x2' ? (
+                    ) : (
                       <div className="flex flex-col">
                         {quantity >= activePromotion.buy_quantity ? (
                           <>
@@ -305,8 +289,8 @@ export default function ProductDetail() {
                         ) : (
                           <>
                             <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
-                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                              <Tag className="h-3 w-3 mr-1" />
+                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                              <Tag className="h-4 w-4 mr-1" />
                               {activePromotion.type === '2x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
                               {activePromotion.type === '3x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
                               {activePromotion.type === '3x2' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
@@ -314,8 +298,6 @@ export default function ProductDetail() {
                           </>
                         )}
                       </div>
-                    ) : (
-                      <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
                     )}
                   </>
                 ) : (
@@ -348,7 +330,6 @@ export default function ProductDetail() {
                           }
                         }
                       }}
-                      type="button"
                       className={`px-3 py-1 rounded-full text-sm ${
                         selectedColor === color
                           ? 'bg-indigo-600 text-white'
@@ -419,17 +400,15 @@ export default function ProductDetail() {
               
               <div className="flex sm:flex-row gap-4">
                 <button
-                  type="button"
                   onClick={() => handleAddToCart(quantity)}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ShoppingBag className="h-5 w-5 mr-2" />
+                  <ShoppingCart className="h-5 w-5 mr-2" />
                   Agregar al carrito
                 </button>
 
                 <button
-                  type="button"
                   onClick={() => handleBuyNow(quantity)}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"

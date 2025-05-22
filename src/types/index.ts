@@ -19,6 +19,7 @@ export interface Product {
     card: boolean;
     payment_url?: string;
   };
+  promotion?: Promotion;
 }
 
 export interface CartItem {
@@ -30,7 +31,6 @@ export interface CartItem {
 export interface Order {
   id: string;
   user_id?: string;
-  items: CartItem[];
   total: number;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   shipping_address: {
@@ -55,14 +55,22 @@ export interface Order {
   order_items?: Array<{
     id: string;
     quantity: number;
+    price_at_time: number;
     selected_color?: string;
     products: {
+      id: string;
       name: string;
+      images?: string[];
     };
   }>;
   dropshipper_id?: string;
   shipping_type?: 'with_collection' | 'without_collection';
   advance_payment?: number;
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  total_amount?: number;
+  notes?: string;
 }
 
 export interface Review {
@@ -72,6 +80,8 @@ export interface Review {
   rating: number;
   comment: string;
   created_at: string;
+  Name?: string;
+  approved?: boolean;
 }
 
 export interface User {
@@ -79,7 +89,7 @@ export interface User {
   email: string;
   full_name: string;
   role: 'customer' | 'admin' | 'fulfillment' | 'dropshipping';
-  created_at: string;
+  created_at?: string;
   updated_at?: string;
   email_confirmed?: boolean;
   last_sign_in?: string;
@@ -98,14 +108,18 @@ export interface Promotion {
   id?: string;
   name: string;
   description?: string;
-  type: '2x1' | '3x1' | '3x2' | 'discount';
-  active: boolean;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  buy_quantity: number;
-  get_quantity: number;
+  type: '2x1' | '3x1' | '3x2' | 'discount' | 'percentage' | 'fixed';
+  value?: number;
+  discount_percent?: number;
+  active?: boolean;
+  is_active?: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
   product_ids?: string[];
-  total_price?: number; // New field for discount type promotions
+  category_ids?: string[];
+  buy_quantity?: number;
+  get_quantity?: number;
+  total_price?: number;
 }

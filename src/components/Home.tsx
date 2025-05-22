@@ -17,11 +17,6 @@ export default function Home() {
     navigate('/admin?tab=orders');
   };
 
-  const handleCartToggle = () => {
-    console.log("Cart toggle clicked, current isOpen:", cartStore.isOpen);
-    cartStore.toggleCart();
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -54,10 +49,9 @@ export default function Home() {
               {/* Carrito - Tamaño aumentado para mejor acceso en móvil */}
               {(!user || user.role !== 'fulfillment') && (
                 <button
-                  onClick={handleCartToggle}
+                  onClick={() => cartStore.toggleCart()}
                   className="flex items-center justify-center text-gray-700 hover:text-indigo-600 relative transition-colors p-2 mr-1 sm:mr-2"
                   aria-label="Carrito de compras"
-                  type="button"
                 >
                   <ShoppingCart className="h-8 w-8" />
                   {cartStore.items.length > 0 && (
@@ -71,10 +65,7 @@ export default function Home() {
               {/* Usuario y opciones - Menú adaptativo */}
               {user ? (
                 <div className="relative group ml-1 sm:ml-2">
-                  <button 
-                    className="flex items-center space-x-1 text-gray-700 hover:text-indigo-600 p-2 rounded-md"
-                    type="button"
-                  >
+                  <button className="flex items-center space-x-1 text-gray-700 hover:text-indigo-600 p-2 rounded-md">
                     <User className="h-6 w-6" />
                     <span className="hidden sm:inline truncate max-w-[120px]">{user.full_name || user.email}</span>
                   </button>
@@ -93,7 +84,6 @@ export default function Home() {
                       <button
                         onClick={handleOrdersClick}
                         className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
-                        type="button"
                       >
                         <Package className="h-5 w-5 mr-2" />
                         Gestionar Pedidos
@@ -102,7 +92,6 @@ export default function Home() {
                     <button
                       onClick={() => signOut()}
                       className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
-                      type="button"
                     >
                       <LogOut className="h-5 w-5 mr-2" />
                       Cerrar sesión
@@ -141,7 +130,6 @@ export default function Home() {
               <button
                 onClick={handleOrdersClick}
                 className="mt-6 sm:mt-8 inline-flex items-center px-4 sm:px-6 py-2 sm:py-3 border border-transparent text-sm sm:text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-indigo-700 focus:ring-white"
-                type="button"
               >
                 <Package className="h-5 w-5 mr-2" />
                 Ver Pedidos Pendientes
@@ -164,7 +152,6 @@ export default function Home() {
             <button
               onClick={handleOrdersClick}
               className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              type="button"
             >
               <Package className="h-5 w-5 mr-2" />
               Ir a Gestión de Pedidos
