@@ -71,14 +71,37 @@ const OrderManager: React.FC = () => {
         return;
       }
       
-      // Establecer los pedidos con información básica
-      const basicOrders = ordersData.map(order => ({
-        ...order,
-        order_items: []
-      }));
+      console.log('Pedidos cargados:', ordersData.length);
       
-      // Actualizar el estado con la información básica primero
-      setOrders(basicOrders);
+      // Procesar los datos de los pedidos para asegurar compatibilidad
+      const processedOrders = ordersData.map(order => {
+        // Extraer información del cliente del objeto shipping_address o guest_info
+        const customerName = order.shipping_address?.full_name || 
+                            order.guest_info?.full_name || 
+                            'N/A';
+                            
+        const customerEmail = order.guest_info?.email || 
+                             (order.user_id ? 'Usuario registrado' : 'N/A');
+                             
+        // Asegurar que los campos requeridos estén presentes
+        return {
+          ...order,
+          // Añadir campos para compatibilidad
+          customer_name: customerName,
+          customer_email: customerEmail,
+          total_amount: order.total || 0,
+          notes: 'Sin notas adicionales',
+          // Asegurar que order_items existe
+          order_items: [],
+          // Convertir objetos a strings para visualización si es necesario
+          shipping_address: typeof order.shipping_address === 'object' 
+            ? `${order.shipping_address.full_name}, ${order.shipping_address.address}, ${order.shipping_address.city}` 
+            : order.shipping_address || 'No disponible'
+        };
+      });
+      
+      // Establecer los pedidos con información procesada
+      setOrders(processedOrders);
       
       // Limpiar selecciones
       setSelectedOrders([]);
@@ -173,7 +196,10 @@ const OrderManager: React.FC = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status })
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -215,7 +241,20 @@ const OrderManager: React.FC = () => {
       // Combinar datos y establecer el pedido seleccionado
       const completeOrder = {
         ...orderData,
-        items: orderItems || [],
+        customer_name: orderData.shipping_address?.full_name || 
+                      orderData.guest_info?.full_name || 
+                      'N/A',
+        customer_email: orderData.guest_info?.email || 
+                       (orderData.user_id ? 'Usuario registrado' : 'N/A'),
+        customer_phone: orderData.shipping_address?.phone || 
+                       orderData.guest_info?.phone || 
+                       'N/A',
+        total_amount: orderData.total || 0,
+        shipping_address: typeof orderData.shipping_address === 'object' 
+          ? `${orderData.shipping_address.full_name}, ${orderData.shipping_address.address}, ${orderData.shipping_address.city}` 
+          : orderData.shipping_address || 'No disponible',
+        notes: 'Sin notas adicionales',
+        items: orderItems || []
       };
       
       console.log('Pedido completo cargado:', completeOrder);
@@ -253,6 +292,15 @@ const OrderManager: React.FC = () => {
     }
   };
 
+  const formatOrderDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm');
+    } catch (e) {
+      return 'Fecha inválida';
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -265,7 +313,7 @@ const OrderManager: React.FC = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-900">
-          Pedidos
+          Pedidos ({orders.length})
         </h2>
         
         {selectedOrders.length > 0 && (
@@ -293,11 +341,30 @@ const OrderManager: React.FC = () => {
       )}
 
       {orders.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No hay pedidos disponibles.</p>
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <div className="p-6">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <h3 className="mt-2 text-lg font-medium text-gray-900">No hay pedidos disponibles</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              No se ha encontrado ningún pedido en el sistema.
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={loadOrders}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                </svg>
+                Actualizar
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto bg-white shadow rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -346,7 +413,7 @@ const OrderManager: React.FC = () => {
                         #{order.id.substring(0, 8)}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {order.total_amount ? `$${order.total_amount.toFixed(2)}` : 'N/A'}
+                        ${order.total_amount ? Number(order.total_amount).toFixed(2) : (order.total ? Number(order.total).toFixed(2) : 'N/A')}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -368,7 +435,7 @@ const OrderManager: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.created_at ? format(new Date(order.created_at), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                      {formatOrderDate(order.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
@@ -509,7 +576,7 @@ const OrderManager: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 mb-2">Información del Pedido</h4>
-                  <p className="text-sm text-gray-900">Fecha: {selectedOrder.created_at ? format(new Date(selectedOrder.created_at), 'dd/MM/yyyy HH:mm') : 'N/A'}</p>
+                  <p className="text-sm text-gray-900">Fecha: {formatOrderDate(selectedOrder.created_at)}</p>
                   <p className="text-sm text-gray-900">Estado: <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ORDER_STATUS_MAP[selectedOrder.status]?.color || 'bg-gray-100 text-gray-800'}`}>
                     {ORDER_STATUS_MAP[selectedOrder.status]?.label || selectedOrder.status}
                   </span></p>
@@ -564,9 +631,9 @@ const OrderManager: React.FC = () => {
                                 <div className="text-sm font-medium text-gray-900">
                                   {item.products?.name || 'Producto desconocido'}
                                 </div>
-                                {item.color && (
+                                {item.selected_color && (
                                   <div className="text-xs text-gray-500">
-                                    Color: {item.color}
+                                    Color: {item.selected_color}
                                   </div>
                                 )}
                               </div>
@@ -576,10 +643,10 @@ const OrderManager: React.FC = () => {
                             {item.quantity || 1}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            ${item.price?.toFixed(2) || 'N/A'}
+                            ${item.price_at_time?.toFixed(2) || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            ${((item.price || 0) * (item.quantity || 1)).toFixed(2)}
+                            ${((item.price_at_time || 0) * (item.quantity || 1)).toFixed(2)}
                           </td>
                         </tr>
                       ))}
@@ -590,7 +657,7 @@ const OrderManager: React.FC = () => {
                           Total:
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          ${selectedOrder.total_amount?.toFixed(2) || 'N/A'}
+                          ${(selectedOrder.total_amount || selectedOrder.total || 0).toFixed(2)}
                         </td>
                       </tr>
                     </tfoot>
