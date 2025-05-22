@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useCartStore } from '../stores/cartStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useShippingSettings } from '../hooks/useShippingSettings';
 import { 
   ArrowLeft, 
   CreditCard, 
@@ -31,6 +32,7 @@ interface FormData {
 export function GuestCheckout() {
   const navigate = useNavigate();
   const cartStore = useCartStore();
+  const { settings } = useShippingSettings();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   
@@ -682,7 +684,11 @@ export function GuestCheckout() {
                   <div className="flex items-center">
                     <Truck className="h-5 w-5 text-green-500" />
                     <span className="ml-2 text-sm text-gray-500">
-                      Envío gratis en compras mayores a $100.000
+                      {settings?.free_shipping_enabled ? (
+                        `Envío gratis en compras mayores a $${settings.free_shipping_threshold.toLocaleString()}`
+                      ) : (
+                        'Envío calculado al finalizar la compra'
+                      )}
                     </span>
                   </div>
                 </div>
