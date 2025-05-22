@@ -56,12 +56,12 @@ export default function ProductDetail() {
         .from('promotion_products')
         .select(`
           promotion:promotions(
-            id, name, type, buy_quantity, get_quantity, total_price, is_active, 
+            id, name, type, buy_quantity, get_quantity, total_price, active, 
             start_date, end_date, created_at, updated_at
           )
         `)
         .eq('product_id', id)
-        .filter('promotion.is_active', 'eq', true)
+        .filter('promotion.active', 'eq', true)
         .filter('promotion.start_date', 'lte', new Date().toISOString())
         .filter('promotion.end_date', 'gte', new Date().toISOString())
         .maybeSingle();
@@ -127,37 +127,45 @@ export default function ProductDetail() {
   const getDiscountedPrice = () => {
     if (!product || !activePromotion) return null;
     
+    // Para promociones de precio fijo (discount)
     if (activePromotion.type === 'discount' && activePromotion.total_price) {
-      return activePromotion.total_price.toFixed(2);
+      return (activePromotion.total_price * quantity).toFixed(2);
     }
     
-    if (activePromotion.total_price) {
-      return activePromotion.total_price;
-    }
-    
+    // Para promociones de tipo 2x1
     if (activePromotion.type === '2x1' && quantity >= 2) {
-      const fullPriceSets = Math.floor(quantity / 2);
-      const remainder = quantity % 2;
+      const fullPriceSets = Math.floor(quantity / 2); // Cuántos pares completos
+      const remainder = quantity % 2; // Unidades sobrantes
       
-      const paidItems = fullPriceSets + remainder;
+      // Por cada par, solo paga 1 unidad + las unidades sobrantes
+      const totalPaidItems = fullPriceSets + remainder;
       
-      return (paidItems * product.price).toFixed(2);
-    } else if (activePromotion.type === '3x2' && quantity >= 3) {
-      const fullPriceSets = Math.floor(quantity / 3);
-      const remainder = quantity % 3;
-      
-      const paidItems = (fullPriceSets * 2) + remainder;
-      
-      return (paidItems * product.price).toFixed(2);
-    } else if (activePromotion.type === '3x1' && quantity >= 3) {
-      const fullPriceSets = Math.floor(quantity / 3);
-      const remainder = quantity % 3;
-      
-      const paidItems = fullPriceSets + remainder;
-      
-      return (paidItems * product.price).toFixed(2);
+      return (totalPaidItems * product.price).toFixed(2);
     }
     
+    // Para promociones de tipo 3x2
+    if (activePromotion.type === '3x2' && quantity >= 3) {
+      const fullPriceSets = Math.floor(quantity / 3); // Cuántos tríos completos
+      const remainder = quantity % 3; // Unidades sobrantes
+      
+      // Por cada trío, solo paga 2 unidades + las unidades sobrantes
+      const totalPaidItems = (fullPriceSets * 2) + remainder;
+      
+      return (totalPaidItems * product.price).toFixed(2);
+    }
+    
+    // Para promociones de tipo 3x1
+    if (activePromotion.type === '3x1' && quantity >= 3) {
+      const fullPriceSets = Math.floor(quantity / 3); // Cuántos tríos completos
+      const remainder = quantity % 3; // Unidades sobrantes
+      
+      // Por cada trío, solo paga 1 unidad + las unidades sobrantes
+      const totalPaidItems = fullPriceSets + remainder;
+      
+      return (totalPaidItems * product.price).toFixed(2);
+    }
+    
+    // Si no hay suficientes unidades para la promoción o es otro tipo
     return (quantity * product.price).toFixed(2);
   };
   
@@ -269,7 +277,9 @@ export default function ProductDetail() {
                           Precio promocional
                         </div>
                       </div>
-                    ) : activePromotion.type === '2x1' || activePromotion.type === '3x1' || activePromotion.type === '3x2' ? (
+                    ) : activePromotion.type === '2x1' || 
+                         activePromotion.type === '3x1' || 
+                         activePromotion.type === '3x2' ? (
                       <div className="flex flex-col">
                         {quantity >= activePromotion.buy_quantity ? (
                           <>
@@ -289,8 +299,8 @@ export default function ProductDetail() {
                         ) : (
                           <>
                             <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
-                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                              <Tag className="h-4 w-4 mr-1" />
+                            <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              <Tag className="h-3 w-3 mr-1" />
                               {activePromotion.type === '2x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
                               {activePromotion.type === '3x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
                               {activePromotion.type === '3x2' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
@@ -402,6 +412,7 @@ export default function ProductDetail() {
               
               <div className="flex sm:flex-row gap-4">
                 <button
+                  type="button"
                   onClick={() => handleAddToCart(quantity)}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -411,6 +422,7 @@ export default function ProductDetail() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => handleBuyNow(quantity)}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"

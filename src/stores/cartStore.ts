@@ -66,11 +66,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
         } else if (type === 'fixed') {
           finalPrice = Math.max(0, price - (value || 0)) * quantity;
         } else if (type === '2x1' && quantity >= 2) {
-          finalPrice = Math.floor(quantity / 2) * price + (quantity % 2) * price;
+          const fullPriceSets = Math.floor(quantity / 2);
+          const remainder = quantity % 2;
+          finalPrice = (fullPriceSets + remainder) * price;
         } else if (type === '3x2' && quantity >= 3) {
-          finalPrice = Math.floor(quantity / 3) * 2 * price + (quantity % 3) * price;
+          const fullPriceSets = Math.floor(quantity / 3);
+          const remainder = quantity % 3;
+          finalPrice = (fullPriceSets * 2 + remainder) * price;
         } else if (type === '3x1' && quantity >= 3) {
-          finalPrice = Math.floor(quantity / 3) * price + (quantity % 3) * price;
+          const fullPriceSets = Math.floor(quantity / 3);
+          const remainder = quantity % 3;
+          finalPrice = (fullPriceSets + remainder) * price;
         } else {
           finalPrice = price * quantity;
         }
