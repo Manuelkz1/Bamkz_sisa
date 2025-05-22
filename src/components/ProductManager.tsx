@@ -101,11 +101,13 @@ export default function ProductManager() {
 
       if (!formData.name.trim()) {
         toast.error('El nombre es requerido');
+        setSaving(false);
         return;
       }
 
       if (formData.price <= 0) {
         toast.error('El precio debe ser mayor a 0');
+        setSaving(false);
         return;
       }
 
@@ -124,42 +126,24 @@ export default function ProductManager() {
         updated_at: new Date().toISOString()
       };
 
+      let result;
+      
       if (editingProduct?.id) {
-        // First verify the product exists and is accessible
-        const { data: existingProduct, error: checkError } = await supabase
-          .from('products')
-          .select('id')
-          .eq('id', editingProduct.id)
-          .single();
-
-        if (checkError) {
-          if (checkError.code === 'PGRST116') {
-            throw new Error('El producto no existe o no tienes permiso para editarlo');
-          }
-          throw checkError;
-        }
-
         // Update existing product
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id);
-
-        if (updateError) throw updateError;
-
-        // Fetch the updated product
-        const { data: updatedProduct, error: fetchError } = await supabase
-          .from('products')
-          .select('*')
           .eq('id', editingProduct.id)
+          .select()
           .single();
 
-        if (fetchError) throw fetchError;
+        if (updateError) throw updateError;
+        result = data;
 
         // Update local state
         setProducts(prevProducts => 
           prevProducts.map(p => 
-            p.id === editingProduct.id ? updatedProduct : p
+            p.id === editingProduct.id ? result : p
           )
         );
 
@@ -173,12 +157,14 @@ export default function ProductManager() {
           .single();
 
         if (insertError) throw insertError;
+        result = data;
 
         // Update local state
-        setProducts(prevProducts => [data, ...prevProducts]);
+        setProducts(prevProducts => [result, ...prevProducts]);
         toast.success('Producto creado');
       }
 
+      // Reset form
       setShowForm(false);
       setEditingProduct(null);
       setFormData({
@@ -197,6 +183,10 @@ export default function ProductManager() {
         delivery_time: '',
         show_delivery_time: false
       });
+
+      // Reload products to ensure we have the latest data
+      await loadProducts();
+
     } catch (error: any) {
       console.error('Error saving product:', error);
       toast.error(`Error al guardar el producto: ${error.message}`);
