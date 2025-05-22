@@ -118,30 +118,21 @@ export default function ProductManager() {
       };
 
       if (editingProduct?.id) {
-        const { data, error: updateError } = await supabase
+        // Update existing product
+        const { error: updateError } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id)
-          .select()
-          .single();
+          .eq('id', editingProduct.id);
 
-        if (updateError) {
-          console.error('Error updating product:', updateError);
-          throw new Error(updateError.message);
-        }
-
-        if (!data) {
-          throw new Error('No se pudo encontrar el producto para actualizar');
-        }
-
+        if (updateError) throw updateError;
         toast.success('Producto actualizado');
       } else {
+        // Create new product
         const { error: insertError } = await supabase
           .from('products')
           .insert([productData]);
 
         if (insertError) throw insertError;
-
         toast.success('Producto creado');
       }
 
