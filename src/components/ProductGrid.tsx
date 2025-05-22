@@ -80,7 +80,9 @@ export function ProductGrid() {
             promotion:promotions(*)
           `)
           .in('product_id', productIds)
-          .filter('promotion.active', 'eq', true);
+          .filter('promotion.active', 'eq', true)
+          .filter('promotion.start_date', 'lte', new Date().toISOString())
+          .filter('promotion.end_date', 'gte', new Date().toISOString());
           
         if (!promotionError && promotionProducts) {
           // Add promotion data to products
@@ -132,6 +134,67 @@ export function ProductGrid() {
     setSortBy('newest');
   };
 
+  const getPromotionalPrice = (product: Product) => {
+    if (!product.promotion) return null;
+
+    if (product.promotion.type === 'discount' && product.promotion.total_price) {
+      return product.promotion.total_price;
+    }
+
+    return null;
+  };
+
+  const getPromotionLabel = (product: Product) => {
+    if (!product.promotion) return null;
+
+    switch (product.promotion.type) {
+      case '2x1':
+        return 'Lleva 2, paga 1';
+      case '3x1':
+        return 'Lleva 3, paga 1';
+      case '3x2':
+        return 'Lleva 3, paga 2';
+      case 'discount':
+        if (product.promotion.total_price) {
+          const discount = Math.round((1 - (product.promotion.total_price / product.price)) * 100);
+          return `${discount}% OFF`;
+        }
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <div key={i} className="bg-white p-4 rounded-lg shadow animate-pulse">
+            <div className="h-48 bg-gray-200 rounded-md mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-red-50 p-4 rounded-lg inline-block">
+          <p className="text-red-800 mb-4">{error}</p>
+          <button
+            onClick={loadProducts}
+            className="bg-red-100 text-red-700 px-4 py-2 rounded-md hover:bg-red-200 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -175,89 +238,74 @@ export function ProductGrid() {
         )}
       </div>
 
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white p-4 rounded-lg shadow animate-pulse">
-              <div className="h-48 bg-gray-200 rounded-md mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {products.map((product) => (
+          <Link
+            key={product.id}
+            to={`/product/${product.id}`}
+            className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105"
+          >
+            <div className="relative">
+              <img
+                src={product.images?.[0]}
+                alt={product.name}
+                className="w-full h-48 object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = 'https://via.placeholder.com/400x300?text=No+Image';
+                }}
+              />
+              {product.available_colors && product.available_colors.length > 0 && (
+                <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs">
+                  {product.available_colors.length} colores
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      ) : error ? (
-        <div className="text-center py-12">
-          <div className="bg-red-50 p-4 rounded-lg inline-block">
-            <p className="text-red-800 mb-4">{error}</p>
-            <button
-              onClick={loadProducts}
-              className="bg-red-100 text-red-700 px-4 py-2 rounded-md hover:bg-red-200 transition-colors"
-            >
-              Reintentar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <Link
-              key={product.id}
-              to={`/product/${product.id}`}
-              className="bg-white rounded-lg shadow-md overflow-hidden transition-transform hover:scale-105"
-            >
-              <div className="relative">
-                <img
-                  src={product.images?.[0]}
-                  alt={product.name}
-                  className="w-full h-48 object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = 'https://via.placeholder.com/400x300?text=No+Image';
-                  }}
-                />
-                {product.available_colors && product.available_colors.length > 0 && (
-                  <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs">
-                    {product.available_colors.length} colores
-                  </div>
-                )}
-              </div>
-              <div className="p-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
-                <div className="flex justify-between items-center">
-                  <div className="flex flex-col">
-                    {product.promotion ? (
-                      <>
-                        <span className="text-sm text-gray-500 line-through">${product.price.toFixed(2)}</span>
-                        <span className="text-lg font-bold text-red-600">
-                          ${(product.price * 0.8).toFixed(2)}
-                        </span>
-                        <span className="text-sm text-red-500">20% OFF</span>
-                      </>
-                    ) : (
-                      <span className="text-lg font-bold text-gray-900">${product.price.toFixed(2)}</span>
-                    )}
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={(e) => handleAddToCart(product, e)}
-                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-                    >
-                      <ShoppingCart className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={(e) => handleBuyNow(product, e)}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                    >
-                      Comprar
-                    </button>
-                  </div>
+            <div className="p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">{product.name}</h3>
+              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
+              <div className="flex justify-between items-center">
+                <div className="flex flex-col">
+                  {product.promotion ? (
+                    <>
+                      <span className="text-sm text-gray-500 line-through">
+                        ${product.price.toFixed(2)}
+                      </span>
+                      <span className="text-lg font-bold text-red-600">
+                        ${getPromotionalPrice(product)?.toFixed(2) || product.price.toFixed(2)}
+                      </span>
+                      {getPromotionLabel(product) && (
+                        <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <Tag className="h-3 w-3 mr-1" />
+                          {getPromotionLabel(product)}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-lg font-bold text-gray-900">
+                      ${product.price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={(e) => handleAddToCart(product, e)}
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={(e) => handleBuyNow(product, e)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                  >
+                    Comprar
+                  </button>
                 </div>
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
