@@ -41,6 +41,11 @@ export function GuestCheckout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Evitar múltiples envíos
+    if (loading) {
+      return;
+    }
+    
     if (!cartStore.items.length) {
       toast.error("El carrito está vacío");
       return;
@@ -130,8 +135,17 @@ export function GuestCheckout() {
           cartStore.clearCart();
           sessionStorage.removeItem("checkout-form");
 
-          // Redirigir a MercadoPago
-          window.location.href = payment.init_point;
+          // Redirigir a MercadoPago usando window.location.assign para mayor compatibilidad
+          console.log('Redirigiendo a:', payment.init_point);
+          window.location.assign(payment.init_point);
+          
+          // Agregar un fallback por si la redirección no funciona inmediatamente
+          setTimeout(() => {
+            console.log('Fallback de redirección activado');
+            window.open(payment.init_point, '_self');
+          }, 1000);
+          
+          return; // Importante: detener la ejecución aquí para evitar que se restablezca loading
         } catch (mpError: any) {
           console.error('Error de MercadoPago:', mpError);
           toast.error(mpError.message || 'Error al conectar con MercadoPago. Intenta nuevamente.');
@@ -141,8 +155,6 @@ export function GuestCheckout() {
             .from('orders')
             .delete()
             .eq('id', order.id);
-            
-          setLoading(false);
         }
       } else { // Pago contra entrega
         await supabase
@@ -157,11 +169,14 @@ export function GuestCheckout() {
         sessionStorage.removeItem("checkout-form");
         toast.success('Pedido realizado con éxito');
         navigate(`/pago?status=pending_cod&order_id=${order.id}`);
+        return; // Importante: detener la ejecución aquí
       }
 
     } catch (error: any) {
       console.error('Error:', error);
       toast.error(error.message || 'Error al procesar el pedido');
+    } finally {
+      // Asegurar que loading se restablece en caso de error
       setLoading(false);
     }
   };
