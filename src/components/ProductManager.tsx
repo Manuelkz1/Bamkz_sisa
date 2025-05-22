@@ -103,33 +103,61 @@ export default function ProductManager() {
       }
 
       const productData = {
-        ...formData,
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: formData.price,
+        stock: formData.stock,
+        category: formData.category.trim(),
+        images: formData.images,
+        available_colors: formData.available_colors,
+        color_images: formData.color_images,
+        allowed_payment_methods: formData.allowed_payment_methods,
+        delivery_time: formData.delivery_time.trim(),
+        show_delivery_time: formData.show_delivery_time,
         updated_at: new Date().toISOString()
       };
 
+      console.log('Saving product data:', productData);
+
       if (editingProduct) {
-        const { error } = await supabase
+        console.log('Updating product:', editingProduct.id);
+        const { data, error } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id);
+          .eq('id', editingProduct.id)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating product:', error);
+          throw error;
+        }
+
+        console.log('Product updated successfully:', data);
         toast.success('Producto actualizado');
       } else {
-        const { error } = await supabase
+        console.log('Creating new product');
+        const { data, error } = await supabase
           .from('products')
-          .insert([productData]);
+          .insert([productData])
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error creating product:', error);
+          throw error;
+        }
+
+        console.log('Product created successfully:', data);
         toast.success('Producto creado');
       }
 
       setShowForm(false);
       setEditingProduct(null);
-      loadProducts();
+      await loadProducts();
     } catch (error: any) {
       console.error('Error saving product:', error);
-      toast.error('Error al guardar el producto');
+      toast.error(`Error al guardar el producto: ${error.message}`);
     }
   };
 
