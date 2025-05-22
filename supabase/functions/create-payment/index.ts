@@ -5,7 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Credentials': 'true',
 };
 
 serve(async (req) => {
@@ -48,9 +47,9 @@ serve(async (req) => {
         unit_price: Number(item.product.price)
       })),
       back_urls: {
-        success: `https://bamkz.com/pago?status=approved&order_id=${orderId}`,
-        failure: `https://bamkz.com/pago?status=rejected&order_id=${orderId}`,
-        pending: `https://bamkz.com/pago?status=pending&order_id=${orderId}`
+        success: `${req.headers.get('origin')}/pago?status=approved&order_id=${orderId}`,
+        failure: `${req.headers.get('origin')}/pago?status=rejected&order_id=${orderId}`,
+        pending: `${req.headers.get('origin')}/pago?status=pending&order_id=${orderId}`
       },
       auto_return: "approved",
       external_reference: orderId,
