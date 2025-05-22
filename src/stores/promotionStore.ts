@@ -5,8 +5,7 @@ export interface Promotion {
   id?: string;
   name: string;
   description?: string;
-  type: 'percentage' | 'fixed' | '2x1' | '3x2' | '3x1';
-  value?: number;
+  type: '2x1' | '3x2' | '3x1';
   active: boolean;
   start_date?: string | null;
   end_date?: string | null;
@@ -87,18 +86,18 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      // Create the promotion record
       const { data: newPromotion, error: promotionError } = await supabase
         .from('promotions')
         .insert([{
           name: promotion.name,
           description: promotion.description,
           type: promotion.type,
-          value: promotion.value,
           active: promotion.active,
           start_date: promotion.start_date || null,
           end_date: promotion.end_date || null,
-          buy_quantity: promotion.buy_quantity || 1,
-          get_quantity: promotion.get_quantity || 1,
+          buy_quantity: promotion.buy_quantity,
+          get_quantity: promotion.get_quantity,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
@@ -107,7 +106,8 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
       
       if (promotionError) throw promotionError;
       
-      if (promotion.product_ids?.length) {
+      // If there are product IDs, create the promotion-product relationships
+      if (promotion.product_ids?.length && newPromotion) {
         const promotionProducts = promotion.product_ids.map(productId => ({
           promotion_id: newPromotion.id,
           product_id: productId
@@ -120,15 +120,15 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
         if (linkError) throw linkError;
       }
       
+      // Refresh the promotions list
       await get().fetchPromotions();
       
+      set({ loading: false });
       return { success: true, data: newPromotion };
     } catch (error: any) {
       console.error('Error creating promotion:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };
-    } finally {
-      set({ loading: false });
     }
   },
   
@@ -172,13 +172,12 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
       
       await get().fetchPromotions();
       
+      set({ loading: false });
       return { success: true, data: updatedPromotion };
     } catch (error: any) {
       console.error('Error updating promotion:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };
-    } finally {
-      set({ loading: false });
     }
   },
   

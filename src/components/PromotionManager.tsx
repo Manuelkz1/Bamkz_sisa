@@ -15,7 +15,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
   const [promotionForm, setPromotionForm] = useState({
     name: '',
     description: '',
-    type: '2x1' as Promotion['type'], // Solo permitidos: '2x1', '3x1', '3x2'
+    type: '2x1' as '2x1' | '3x1' | '3x2',
     start_date: '',
     end_date: '',
     active: true,
@@ -57,30 +57,16 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
 
   const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
-    
-    // Asegurar que los valores de buy_quantity y get_quantity estén presentes
-    // y que el tipo sea uno de los permitidos
-    let type = promotion.type;
-    if (!['2x1', '3x1', '3x2'].includes(type)) {
-      type = '2x1'; // Valor por defecto si el tipo no es válido
-    }
-    
-    const buy_quantity = promotion.buy_quantity || 
-      (type === '2x1' ? 2 : type === '3x1' || type === '3x2' ? 3 : 2);
-    
-    const get_quantity = promotion.get_quantity || 
-      (type === '2x1' || type === '3x1' ? 1 : type === '3x2' ? 2 : 1);
-    
     setPromotionForm({
       name: promotion.name,
       description: promotion.description || '',
-      type: type,
+      type: promotion.type,
       start_date: promotion.start_date ? new Date(promotion.start_date).toISOString().split('T')[0] : '',
       end_date: promotion.end_date ? new Date(promotion.end_date).toISOString().split('T')[0] : '',
       active: promotion.active,
       product_ids: promotion.product_ids || [],
-      buy_quantity,
-      get_quantity
+      buy_quantity: promotion.buy_quantity,
+      get_quantity: promotion.get_quantity
     });
   };
 
@@ -99,7 +85,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     });
   };
 
-  const handleTypeChange = (type: string) => {
+  const handleTypeChange = (type: '2x1' | '3x1' | '3x2') => {
     let buy_quantity = 2;
     let get_quantity = 1;
     
@@ -116,7 +102,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
     
     setPromotionForm(prev => ({ 
       ...prev, 
-      type: type as Promotion['type'],
+      type,
       buy_quantity,
       get_quantity
     }));
@@ -131,19 +117,8 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         return;
       }
 
-      if (promotionForm.buy_quantity <= 0 || promotionForm.get_quantity <= 0) {
-        toast.error('Las cantidades deben ser mayores que cero');
-        return;
-      }
-
       if (promotionForm.product_ids.length === 0) {
         toast.error('Debes seleccionar al menos un producto');
-        return;
-      }
-
-      // Verificar que el tipo sea uno de los permitidos
-      if (!['2x1', '3x1', '3x2'].includes(promotionForm.type)) {
-        toast.error('El tipo de promoción seleccionado no es válido');
         return;
       }
 
@@ -159,8 +134,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         get_quantity: promotionForm.get_quantity
       };
 
-      console.log('Guardando promoción:', promotionData);
-
       let result;
       if (editingPromotion) {
         result = await promotionStore.updatePromotion(editingPromotion.id!, promotionData);
@@ -174,7 +147,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
         if (onPromotionCreated) {
           onPromotionCreated();
         }
-        await loadData(); // Reload data after successful creation/update
+        await loadData();
       } else {
         toast.error(result.error || 'Error al guardar la promoción');
       }
@@ -193,7 +166,7 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
       const result = await promotionStore.deletePromotion(id);
       if (result.success) {
         toast.success('Promoción eliminada');
-        await loadData(); // Reload data after successful deletion
+        await loadData();
       } else {
         toast.error(result.error || 'Error al eliminar la promoción');
       }
@@ -240,16 +213,13 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
               <label className="block text-sm font-medium mb-1">Tipo de Promoción</label>
               <select
                 value={promotionForm.type}
-                onChange={(e) => handleTypeChange(e.target.value)}
+                onChange={(e) => handleTypeChange(e.target.value as '2x1' | '3x1' | '3x2')}
                 className="w-full p-2 border rounded"
               >
                 <option value="2x1">2x1 (Lleva 2, paga 1)</option>
                 <option value="3x2">3x2 (Lleva 3, paga 2)</option>
                 <option value="3x1">3x1 (Lleva 3, paga 1)</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
-                Nota: Solo se permiten estos tipos de promoción según la configuración de la base de datos.
-              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -260,7 +230,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   value={promotionForm.buy_quantity}
                   readOnly
                   className="w-full p-2 border rounded bg-gray-100"
-                  required
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Se establece automáticamente según el tipo
@@ -273,7 +242,6 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
                   value={promotionForm.get_quantity}
                   readOnly
                   className="w-full p-2 border rounded bg-gray-100"
-                  required
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Se establece automáticamente según el tipo
@@ -390,10 +358,10 @@ const PromotionManager: React.FC<PromotionManagerProps> = ({ onPromotionCreated 
 
                 <div className="text-sm">
                   <p>
-                    Tipo: {promotion.type === '2x1' ? `Lleva 2, paga 1` :
-                          promotion.type === '3x2' ? `Lleva 3, paga 2` :
-                          promotion.type === '3x1' ? `Lleva 3, paga 1` :
-                          `${promotion.type}`}
+                    Tipo: {promotion.type === '2x1' ? 'Lleva 2, paga 1' :
+                          promotion.type === '3x2' ? 'Lleva 3, paga 2' :
+                          promotion.type === '3x1' ? 'Lleva 3, paga 1' :
+                          promotion.type}
                   </p>
                   <p>
                     Estado: <span className={promotion.active ? 'text-green-600' : 'text-red-600'}>

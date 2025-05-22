@@ -98,12 +98,13 @@ export interface Promotion {
   id: string;
   name: string;
   description?: string;
-  type: 'percentage' | 'fixed' | '2x1' | '3x1' | '3x2';
-  value: number;
+  type: '2x1' | '3x1' | '3x2';
   active: boolean;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
   updated_at: string;
-  products?: Product[];
+  buy_quantity: number;
+  get_quantity: number;
+  product_ids?: string[];
 }
