@@ -76,7 +76,8 @@ export default function ProductManager() {
       const { error } = await supabase
         .from('products')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .maybeSingle();
 
       if (error) throw error;
       
@@ -126,7 +127,7 @@ export default function ProductManager() {
           .update(productData)
           .eq('id', editingProduct.id)
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Error updating product:', error);
@@ -141,7 +142,7 @@ export default function ProductManager() {
           .from('products')
           .insert([productData])
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('Error creating product:', error);
