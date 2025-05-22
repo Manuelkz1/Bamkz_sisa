@@ -52,24 +52,26 @@ export default function ProductDetail() {
         }
       }
 
+      // Load active promotion for this product
       const { data: promotionData, error: promotionError } = await supabase
         .from('promotion_products')
         .select(`
           promotion:promotions(
-            id, name, type, buy_quantity, get_quantity, total_price, is_active, 
+            id, name, type, buy_quantity, get_quantity, total_price, active, 
             start_date, end_date, created_at, updated_at
           )
         `)
         .eq('product_id', id)
-        .filter('promotion.is_active', 'eq', true)
+        .filter('promotion.active', 'eq', true)
         .filter('promotion.start_date', 'lte', new Date().toISOString())
         .filter('promotion.end_date', 'gte', new Date().toISOString())
         .maybeSingle();
 
-      if (!promotionError && promotionData && promotionData.promotion) {
+      if (!promotionError && promotionData?.promotion) {
         setActivePromotion(promotionData.promotion);
       }
 
+      // Load related products
       const { data: related, error: relatedError } = await supabase
         .from('products')
         .select('*')
