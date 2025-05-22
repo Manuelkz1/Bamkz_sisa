@@ -98,32 +98,52 @@ export function GuestCheckout() {
       if (itemsError) throw itemsError;
 
       if (formData.paymentMethod === 'mercadopago') {
-        // Crear preferencia de pago
-        const { data: payment, error: paymentError } = await supabase.functions.invoke('create-payment', {
-          body: {
-            orderId: order.id,
-            items: cartStore.items.map(item => ({
-              product: {
-                name: item.product.name,
-                price: Number(item.product.price)
-              },
-              quantity: item.quantity
-            })),
-            total: cartStore.total
+        try {
+          // Crear preferencia de pago con timeout
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000)
+          );
+          
+          const paymentPromise = supabase.functions.invoke('create-payment', {
+            body: {
+              orderId: order.id,
+              items: cartStore.items.map(item => ({
+                product: {
+                  name: item.product.name,
+                  price: Number(item.product.price)
+                },
+                quantity: item.quantity
+              })),
+              total: cartStore.total
+            }
+          });
+          
+          // Usar Promise.race para implementar timeout
+          const result = await Promise.race([paymentPromise, timeoutPromise]);
+          const { data: payment, error: paymentError } = result;
+
+          if (paymentError || !payment?.init_point) {
+            throw new Error(paymentError?.message || 'Error al crear preferencia de pago');
           }
-        });
 
-        if (paymentError || !payment?.init_point) {
-          throw new Error('Error al crear preferencia de pago');
+          // Limpiar datos
+          cartStore.clearCart();
+          sessionStorage.removeItem("checkout-form");
+
+          // Redirigir a MercadoPago
+          window.location.href = payment.init_point;
+        } catch (mpError: any) {
+          console.error('Error de MercadoPago:', mpError);
+          toast.error(mpError.message || 'Error al conectar con MercadoPago. Intenta nuevamente.');
+          
+          // Eliminar la orden creada para evitar órdenes huérfanas
+          await supabase
+            .from('orders')
+            .delete()
+            .eq('id', order.id);
+            
+          setLoading(false);
         }
-
-        // Limpiar datos
-        cartStore.clearCart();
-        sessionStorage.removeItem("checkout-form");
-
-        // Redirigir a MercadoPago
-        window.location.href = payment.init_point;
-
       } else { // Pago contra entrega
         await supabase
           .from('orders')
