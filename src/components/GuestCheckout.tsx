@@ -38,11 +38,63 @@ export function GuestCheckout() {
     sessionStorage.setItem("checkout-form", JSON.stringify(formData));
   }, [formData]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Referencia para controlar si el componente está montado
+  const isMounted = React.useRef(true);
+  
+  // Limpiar la referencia cuando el componente se desmonte
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Función para manejar la redirección a Mercado Pago de manera segura
+  const redirectToMercadoPago = (url) => {
+    // Desactivar cualquier interacción adicional
+    document.body.style.pointerEvents = 'none';
+    
+    // Mostrar un mensaje de redirección
+    toast.success('Redirigiendo a Mercado Pago...');
+    
+    // Usar un enfoque más directo para la redirección
+    try {
+      console.log('Redirigiendo a:', url);
+      
+      // Crear un enlace y hacer clic en él (método más compatible)
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_self';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpiar después del clic
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 100);
+      
+      // Fallback absoluto: si después de 3 segundos seguimos aquí, forzar la redirección
+      setTimeout(() => {
+        if (window.location.href.indexOf('pago') === -1) {
+          console.log('Fallback final activado');
+          window.location.href = url;
+        }
+      }, 3000);
+    } catch (e) {
+      console.error('Error en redirección:', e);
+      // Último recurso
+      window.location.href = url;
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     // Evitar múltiples envíos
     if (loading) {
+      console.log('Formulario ya en proceso, ignorando envío adicional');
       return;
     }
     
@@ -56,9 +108,15 @@ export function GuestCheckout() {
       return;
     }
 
-    try {
-      setLoading(true);
+    // Activar estado de carga inmediatamente
+    setLoading(true);
+    
+    // Variable para controlar si debemos restaurar el estado loading
+    let shouldResetLoading = true;
 
+    try {
+      console.log('Iniciando proceso de checkout');
+      
       // Crear orden
       const { data: order, error: orderError } = await supabase
         .from('orders')
@@ -85,7 +143,12 @@ export function GuestCheckout() {
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error('Error al crear orden:', orderError);
+        throw orderError;
+      }
+      
+      console.log('Orden creada con ID:', order.id);
 
       // Crear items del pedido
       const orderItems = cartStore.items.map(item => ({
@@ -100,10 +163,17 @@ export function GuestCheckout() {
         .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        console.error('Error al crear items del pedido:', itemsError);
+        throw itemsError;
+      }
+      
+      console.log('Items del pedido creados correctamente');
 
       if (formData.paymentMethod === 'mercadopago') {
         try {
+          console.log('Iniciando proceso de pago con Mercado Pago');
+          
           // Crear preferencia de pago con timeout
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000)
@@ -123,40 +193,57 @@ export function GuestCheckout() {
             }
           });
           
+          console.log('Esperando respuesta de create-payment...');
+          
           // Usar Promise.race para implementar timeout
           const result = await Promise.race([paymentPromise, timeoutPromise]);
           const { data: payment, error: paymentError } = result;
 
           if (paymentError || !payment?.init_point) {
+            console.error('Error en respuesta de create-payment:', paymentError);
             throw new Error(paymentError?.message || 'Error al crear preferencia de pago');
           }
+          
+          console.log('Preferencia de pago creada correctamente:', payment.preference_id);
 
           // Limpiar datos
           cartStore.clearCart();
           sessionStorage.removeItem("checkout-form");
+          
+          console.log('Datos de sesión limpiados');
 
-          // Redirigir a MercadoPago usando window.location.assign para mayor compatibilidad
-          console.log('Redirigiendo a:', payment.init_point);
-          window.location.assign(payment.init_point);
+          // No restaurar loading ya que vamos a redirigir
+          shouldResetLoading = false;
           
-          // Agregar un fallback por si la redirección no funciona inmediatamente
-          setTimeout(() => {
-            console.log('Fallback de redirección activado');
-            window.open(payment.init_point, '_self');
-          }, 1000);
+          // Usar nuestra función segura de redirección
+          if (isMounted.current) {
+            redirectToMercadoPago(payment.init_point);
+          }
           
-          return; // Importante: detener la ejecución aquí para evitar que se restablezca loading
-        } catch (mpError: any) {
-          console.error('Error de MercadoPago:', mpError);
-          toast.error(mpError.message || 'Error al conectar con MercadoPago. Intenta nuevamente.');
+          // No continuar con la ejecución
+          return;
+          
+        } catch (mpError) {
+          console.error('Error en proceso de Mercado Pago:', mpError);
+          
+          if (isMounted.current) {
+            toast.error(mpError.message || 'Error al conectar con MercadoPago. Intenta nuevamente.');
+          }
           
           // Eliminar la orden creada para evitar órdenes huérfanas
-          await supabase
-            .from('orders')
-            .delete()
-            .eq('id', order.id);
+          try {
+            console.log('Eliminando orden huérfana:', order.id);
+            await supabase
+              .from('orders')
+              .delete()
+              .eq('id', order.id);
+          } catch (deleteError) {
+            console.error('Error al eliminar orden huérfana:', deleteError);
+          }
         }
       } else { // Pago contra entrega
+        console.log('Procesando pago contra entrega');
+        
         await supabase
           .from('orders')
           .update({ 
@@ -167,17 +254,32 @@ export function GuestCheckout() {
 
         cartStore.clearCart();
         sessionStorage.removeItem("checkout-form");
-        toast.success('Pedido realizado con éxito');
-        navigate(`/pago?status=pending_cod&order_id=${order.id}`);
-        return; // Importante: detener la ejecución aquí
+        
+        if (isMounted.current) {
+          toast.success('Pedido realizado con éxito');
+          
+          // No restaurar loading ya que vamos a navegar
+          shouldResetLoading = false;
+          
+          navigate(`/pago?status=pending_cod&order_id=${order.id}`);
+        }
+        
+        // No continuar con la ejecución
+        return;
       }
 
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast.error(error.message || 'Error al procesar el pedido');
+    } catch (error) {
+      console.error('Error general en proceso de checkout:', error);
+      
+      if (isMounted.current) {
+        toast.error(error.message || 'Error al procesar el pedido');
+      }
     } finally {
-      // Asegurar que loading se restablece en caso de error
-      setLoading(false);
+      // Restaurar el estado de carga solo si es necesario y el componente sigue montado
+      if (shouldResetLoading && isMounted.current) {
+        console.log('Restaurando estado de loading a false');
+        setLoading(false);
+      }
     }
   };
 
