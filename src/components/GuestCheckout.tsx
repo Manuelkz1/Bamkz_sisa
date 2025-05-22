@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -38,201 +38,55 @@ export function GuestCheckout() {
     sessionStorage.setItem("checkout-form", JSON.stringify(formData));
   }, [formData]);
 
-  // Referencia para controlar si el componente está montado
-  const isMounted = useRef(true);
-  
-  // Limpiar la referencia cuando el componente se desmonte
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Función mejorada para detectar Chrome y sus variantes
-  const isChrome = () => {
-    try {
-      // Método moderno usando userAgentData
-      if ('userAgentData' in navigator) {
-        return (navigator as any).userAgentData.brands.some((brand: any) => 
-          brand.brand.toLowerCase().includes('chrome') ||
-          brand.brand.toLowerCase().includes('chromium')
-        );
-      }
-      
-      // Método tradicional usando userAgent
-      const ua = navigator.userAgent.toLowerCase();
-      return ua.includes('chrome') || ua.includes('chromium');
-    } catch (e) {
-      console.warn('Error detectando navegador:', e);
-      return false;
-    }
-  };
-
-  // Función mejorada para manejar la redirección a Mercado Pago
   const redirectToMercadoPago = (url: string) => {
     console.log('Iniciando redirección a Mercado Pago:', url);
     
-    // Desactivar interacciones para prevenir doble clicks
-    document.body.style.pointerEvents = 'none';
+    // Crear y enviar formulario
+    const form = document.createElement('form');
+    form.method = 'GET';
+    form.action = url;
+    form.target = '_self';
+    
+    // Agregar un campo oculto con timestamp para evitar caché
+    const timestampField = document.createElement('input');
+    timestampField.type = 'hidden';
+    timestampField.name = '_t';
+    timestampField.value = Date.now().toString();
+    form.appendChild(timestampField);
     
     // Mostrar mensaje de redirección
     toast.success('Redirigiendo a Mercado Pago...');
     
-    // Crear un contador de intentos
-    let attempts = 0;
-    const maxAttempts = 3;
+    // Agregar formulario al DOM y enviarlo
+    document.body.appendChild(form);
     
-    const attemptRedirect = () => {
-      attempts++;
-      console.log(`Intento de redirección #${attempts}`);
-
-      try {
-        if (isChrome()) {
-          console.log('Usando método específico para Chrome');
-          
-          // Método 1: Crear y hacer clic en un enlace
-          const link = document.createElement('a');
-          link.href = url;
-          link.target = '_self';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          // Método 2: Redirección directa como respaldo
-          setTimeout(() => {
-            if (window.location.href === url) {
-              console.log('Redirección exitosa');
-              return;
-            }
-            
-            console.log('Intentando método de respaldo para Chrome');
-            window.location.href = url;
-          }, 100);
-        } else {
-          // Para otros navegadores, crear una página intermedia
-          const html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Redirigiendo a Mercado Pago</title>
-              <style>
-                body {
-                  font-family: -apple-system, system-ui, sans-serif;
-                  background-color: #f5f5f5;
-                  display: flex;
-                  justify-content: center;
-                  align-items: center;
-                  height: 100vh;
-                  margin: 0;
-                  padding: 20px;
-                  text-align: center;
-                }
-                .container {
-                  background-color: white;
-                  border-radius: 8px;
-                  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                  padding: 30px;
-                  max-width: 500px;
-                }
-                h1 {
-                  color: #3d4852;
-                  margin-bottom: 20px;
-                }
-                p {
-                  color: #606f7b;
-                  margin-bottom: 30px;
-                }
-                .loader {
-                  border: 5px solid #f3f3f3;
-                  border-top: 5px solid #3498db;
-                  border-radius: 50%;
-                  width: 50px;
-                  height: 50px;
-                  animation: spin 1s linear infinite;
-                  margin: 0 auto 20px auto;
-                }
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-                .redirect-button {
-                  background-color: #3490dc;
-                  color: white;
-                  border: none;
-                  padding: 10px 20px;
-                  border-radius: 4px;
-                  cursor: pointer;
-                  font-size: 16px;
-                  transition: background-color 0.3s;
-                }
-                .redirect-button:hover {
-                  background-color: #2779bd;
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="loader"></div>
-                <h1>Redirigiendo a Mercado Pago</h1>
-                <p>Estás siendo redirigido a la plataforma de pago. Si no eres redirigido automáticamente en unos segundos, haz clic en el botón de abajo.</p>
-                <button onclick="window.location.href='${url}'" class="redirect-button">
-                  Ir a Mercado Pago
-                </button>
-              </div>
-              
-              <script>
-                // Intentar redirección automática
-                setTimeout(() => {
-                  window.location.href = '${url}';
-                }, 1500);
-
-                // Verificar si la redirección fue exitosa
-                setTimeout(() => {
-                  if (window.location.href === '${url}') return;
-                  // Si no, intentar otro método
-                  const form = document.createElement('form');
-                  form.method = 'GET';
-                  form.action = '${url}';
-                  form.target = '_self';
-                  document.body.appendChild(form);
-                  form.submit();
-                }, 2500);
-              </script>
-            </body>
-            </html>
-          `;
-          
-          const blob = new Blob([html], { type: 'text/html' });
-          const redirectPageUrl = URL.createObjectURL(blob);
-          window.location.href = redirectPageUrl;
-        }
-      } catch (error) {
-        console.error('Error en intento de redirección:', error);
-        
-        // Intentar nuevamente si no se alcanzó el límite
-        if (attempts < maxAttempts) {
-          console.log(`Reintentando redirección en 1 segundo...`);
-          setTimeout(attemptRedirect, 1000);
-        } else {
-          console.error('Se alcanzó el límite de intentos de redirección');
-          // Mostrar mensaje al usuario
-          toast.error('Error al redirigir. Por favor, haz clic en el botón de pago nuevamente.');
-          document.body.style.pointerEvents = 'auto';
-        }
-      }
-    };
-
-    // Iniciar el proceso de redirección
-    attemptRedirect();
+    // Establecer un timeout para detectar si la redirección falló
+    const redirectTimeout = setTimeout(() => {
+      toast.error('Error al redirigir. Intentando método alternativo...');
+      window.location.href = url;
+    }, 3000);
+    
+    // Enviar el formulario
+    try {
+      form.submit();
+      
+      // Limpiar datos después de un breve delay
+      setTimeout(() => {
+        cartStore.clearCart();
+        sessionStorage.removeItem("checkout-form");
+        document.body.removeChild(form);
+        clearTimeout(redirectTimeout);
+      }, 1000);
+    } catch (error) {
+      console.error('Error en redirección:', error);
+      clearTimeout(redirectTimeout);
+      window.location.href = url;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Evitar múltiples envíos
     if (loading) {
       console.log('Formulario ya en proceso, ignorando envío adicional');
       return;
@@ -248,12 +102,8 @@ export function GuestCheckout() {
       return;
     }
 
-    // Activar estado de carga inmediatamente
     setLoading(true);
     
-    // Variable para controlar si debemos restaurar el estado loading
-    let shouldResetLoading = true;
-
     try {
       console.log('Iniciando proceso de checkout');
       
@@ -283,10 +133,7 @@ export function GuestCheckout() {
         .select()
         .single();
 
-      if (orderError) {
-        console.error('Error al crear orden:', orderError);
-        throw orderError;
-      }
+      if (orderError) throw orderError;
       
       console.log('Orden creada con ID:', order.id);
 
@@ -303,10 +150,7 @@ export function GuestCheckout() {
         .from('order_items')
         .insert(orderItems);
 
-      if (itemsError) {
-        console.error('Error al crear items del pedido:', itemsError);
-        throw itemsError;
-      }
+      if (itemsError) throw itemsError;
       
       console.log('Items del pedido creados correctamente');
 
@@ -314,12 +158,7 @@ export function GuestCheckout() {
         try {
           console.log('Iniciando proceso de pago con Mercado Pago');
           
-          // Crear preferencia de pago con timeout
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000)
-          );
-          
-          const paymentPromise = supabase.functions.invoke('create-payment', {
+          const { data: payment, error: paymentError } = await supabase.functions.invoke('create-payment', {
             body: {
               orderId: order.id,
               items: cartStore.items.map(item => ({
@@ -332,47 +171,20 @@ export function GuestCheckout() {
               total: cartStore.total
             }
           });
-          
-          console.log('Esperando respuesta de create-payment...');
-          
-          // Usar Promise.race para implementar timeout
-          const result = await Promise.race([paymentPromise, timeoutPromise]);
-          const { data: payment, error: paymentError } = result;
 
           if (paymentError || !payment?.init_point) {
-            console.error('Error en respuesta de create-payment:', paymentError);
             throw new Error(paymentError?.message || 'Error al crear preferencia de pago');
           }
           
-          console.log('Preferencia de pago creada correctamente:', payment.preference_id);
-
-          // Limpiar datos
-          cartStore.clearCart();
-          sessionStorage.removeItem("checkout-form");
-          
-          console.log('Datos de sesión limpiados');
-
-          // No restaurar loading ya que vamos a redirigir
-          shouldResetLoading = false;
-          
-          // Usar nuestra función segura de redirección
-          if (isMounted.current) {
-            redirectToMercadoPago(payment.init_point);
-          }
-          
-          // No continuar con la ejecución
+          console.log('Preferencia de pago creada correctamente');
+          redirectToMercadoPago(payment.init_point);
           return;
           
         } catch (mpError) {
           console.error('Error en proceso de Mercado Pago:', mpError);
+          toast.error('Error al conectar con MercadoPago. Intenta nuevamente.');
           
-          if (isMounted.current) {
-            toast.error(mpError.message || 'Error al conectar con MercadoPago. Intenta nuevamente.');
-          }
-          
-          // Eliminar la orden creada para evitar órdenes huérfanas
           try {
-            console.log('Eliminando orden huérfana:', order.id);
             await supabase
               .from('orders')
               .delete()
@@ -380,6 +192,8 @@ export function GuestCheckout() {
           } catch (deleteError) {
             console.error('Error al eliminar orden huérfana:', deleteError);
           }
+          
+          setLoading(false);
         }
       } else { // Pago contra entrega
         console.log('Procesando pago contra entrega');
@@ -395,31 +209,15 @@ export function GuestCheckout() {
         cartStore.clearCart();
         sessionStorage.removeItem("checkout-form");
         
-        if (isMounted.current) {
-          toast.success('Pedido realizado con éxito');
-          
-          // No restaurar loading ya que vamos a navegar
-          shouldResetLoading = false;
-          
-          navigate(`/pago?status=pending_cod&order_id=${order.id}`);
-        }
-        
-        // No continuar con la ejecución
+        toast.success('Pedido realizado con éxito');
+        navigate(`/pago?status=pending_cod&order_id=${order.id}`);
         return;
       }
 
     } catch (error) {
       console.error('Error general en proceso de checkout:', error);
-      
-      if (isMounted.current) {
-        toast.error(error.message || 'Error al procesar el pedido');
-      }
-    } finally {
-      // Restaurar el estado de carga solo si es necesario y el componente sigue montado
-      if (shouldResetLoading && isMounted.current) {
-        console.log('Restaurando estado de loading a false');
-        setLoading(false);
-      }
+      toast.error('Error al procesar el pedido');
+      setLoading(false);
     }
   };
 
