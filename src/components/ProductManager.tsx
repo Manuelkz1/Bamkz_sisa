@@ -7,6 +7,7 @@ import type { Product } from '../types';
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
@@ -51,10 +52,10 @@ export default function ProductManager() {
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setFormData({
-      name: product.name,
+      name: product.name || '',
       description: product.description || '',
-      price: product.price,
-      stock: product.stock,
+      price: product.price || 0,
+      stock: product.stock || 0,
       category: product.category || '',
       images: product.images || [],
       available_colors: product.available_colors || [],
@@ -81,7 +82,7 @@ export default function ProductManager() {
       if (error) throw error;
       
       toast.success('Producto eliminado');
-      loadProducts();
+      await loadProducts();
     } catch (error: any) {
       console.error('Error deleting product:', error);
       toast.error('Error al eliminar el producto');
@@ -91,7 +92,13 @@ export default function ProductManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (saving) {
+      return;
+    }
+
     try {
+      setSaving(true);
+
       if (!formData.name.trim()) {
         toast.error('El nombre es requerido');
         return;
@@ -119,34 +126,79 @@ export default function ProductManager() {
 
       if (editingProduct?.id) {
         // Update existing product
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id);
+          .eq('id', editingProduct.id)
+          .select()
+          .single();
 
         if (updateError) throw updateError;
+
+        // Update local state
+        setProducts(prevProducts => 
+          prevProducts.map(p => 
+            p.id === editingProduct.id ? { ...p, ...data } : p
+          )
+        );
+
         toast.success('Producto actualizado');
       } else {
         // Create new product
-        const { error: insertError } = await supabase
+        const { data, error: insertError } = await supabase
           .from('products')
-          .insert([productData]);
+          .insert([productData])
+          .select()
+          .single();
 
         if (insertError) throw insertError;
+
+        // Update local state
+        setProducts(prevProducts => [data, ...prevProducts]);
         toast.success('Producto creado');
       }
 
       setShowForm(false);
       setEditingProduct(null);
-      await loadProducts();
+      setFormData({
+        name: '',
+        description: '',
+        price: 0,
+        stock: 0,
+        category: '',
+        images: [],
+        available_colors: [],
+        color_images: [],
+        allowed_payment_methods: {
+          cash_on_delivery: true,
+          card: true
+        },
+        delivery_time: '',
+        show_delivery_time: false
+      });
     } catch (error: any) {
       console.error('Error saving product:', error);
       toast.error(`Error al guardar el producto: ${error.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleImageUpload = async (file: File) => {
     try {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error('Tipo de archivo no permitido. Use JPG, PNG o WebP');
+        return null;
+      }
+
+      // Validate file size (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('El archivo es demasiado grande. Máximo 2MB');
+        return null;
+      }
+
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -162,9 +214,9 @@ export default function ProductManager() {
         .getPublicUrl(filePath);
 
       return publicUrl;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
-      toast.error('Error al subir la imagen');
+      toast.error(`Error al subir la imagen: ${error.message}`);
       return null;
     }
   };
@@ -216,7 +268,26 @@ export default function ProductManager() {
               {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
             </h3>
             <button
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingProduct(null);
+                setFormData({
+                  name: '',
+                  description: '',
+                  price: 0,
+                  stock: 0,
+                  category: '',
+                  images: [],
+                  available_colors: [],
+                  color_images: [],
+                  allowed_payment_methods: {
+                    cash_on_delivery: true,
+                    card: true
+                  },
+                  delivery_time: '',
+                  show_delivery_time: false
+                });
+              }}
               className="text-gray-400 hover:text-gray-500"
             >
               <X className="h-5 w-5" />
@@ -229,8 +300,9 @@ export default function ProductManager() {
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                required
               />
             </div>
 
@@ -238,7 +310,7 @@ export default function ProductManager() {
               <label className="block text-sm font-medium text-gray-700">Descripción</label>
               <textarea
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={3}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
@@ -254,10 +326,12 @@ export default function ProductManager() {
                   <input
                     type="number"
                     value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
                     className="block w-full pl-7 pr-12 rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
                     placeholder="0.00"
                     step="0.01"
+                    min="0"
+                    required
                   />
                 </div>
               </div>
@@ -267,9 +341,10 @@ export default function ProductManager() {
                 <input
                   type="number"
                   value={formData.stock}
-                  onChange={(e) => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, stock: parseInt(e.target.value) || 0 }))}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   min="0"
+                  required
                 />
               </div>
             </div>
@@ -279,7 +354,7 @@ export default function ProductManager() {
               <input
                 type="text"
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
             </div>
@@ -289,16 +364,16 @@ export default function ProductManager() {
               <div className="mt-1 flex items-center">
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
                       const url = await handleImageUpload(file);
                       if (url) {
-                        setFormData({
-                          ...formData,
-                          images: [...formData.images, url]
-                        });
+                        setFormData(prev => ({
+                          ...prev,
+                          images: [...prev.images, url]
+                        }));
                       }
                     }
                   }}
@@ -316,10 +391,10 @@ export default function ProductManager() {
                     <button
                       type="button"
                       onClick={() => {
-                        setFormData({
-                          ...formData,
-                          images: formData.images.filter((_, i) => i !== index)
-                        });
+                        setFormData(prev => ({
+                          ...prev,
+                          images: prev.images.filter((_, i) => i !== index)
+                        }));
                       }}
                       className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 hover:bg-red-200"
                     >
@@ -341,10 +416,10 @@ export default function ProductManager() {
                       e.preventDefault();
                       const color = e.currentTarget.value.trim();
                       if (color && !formData.available_colors.includes(color)) {
-                        setFormData({
-                          ...formData,
-                          available_colors: [...formData.available_colors, color]
-                        });
+                        setFormData(prev => ({
+                          ...prev,
+                          available_colors: [...prev.available_colors, color]
+                        }));
                         e.currentTarget.value = '';
                       }
                     }
@@ -362,10 +437,10 @@ export default function ProductManager() {
                     <button
                       type="button"
                       onClick={() => {
-                        setFormData({
-                          ...formData,
-                          available_colors: formData.available_colors.filter((_, i) => i !== index)
-                        });
+                        setFormData(prev => ({
+                          ...prev,
+                          available_colors: prev.available_colors.filter((_, i) => i !== index)
+                        }));
                       }}
                       className="ml-1 text-indigo-600 hover:text-indigo-500"
                     >
@@ -382,7 +457,7 @@ export default function ProductManager() {
                 <input
                   type="text"
                   value={formData.delivery_time}
-                  onChange={(e) => setFormData({ ...formData, delivery_time: e.target.value })}
+                  onChange={(e) => setFormData(prev => ({ ...prev, delivery_time: e.target.value }))}
                   placeholder="Ej: 2-3 días hábiles"
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
@@ -392,7 +467,7 @@ export default function ProductManager() {
                   <input
                     type="checkbox"
                     checked={formData.show_delivery_time}
-                    onChange={(e) => setFormData({ ...formData, show_delivery_time: e.target.checked })}
+                    onChange={(e) => setFormData(prev => ({ ...prev, show_delivery_time: e.target.checked }))}
                     className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   />
                   <span className="ml-2 text-sm text-gray-600">
@@ -409,13 +484,13 @@ export default function ProductManager() {
                   <input
                     type="checkbox"
                     checked={formData.allowed_payment_methods.cash_on_delivery}
-                    onChange={(e) => setFormData({
-                      ...formData,
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
                       allowed_payment_methods: {
-                        ...formData.allowed_payment_methods,
+                        ...prev.allowed_payment_methods,
                         cash_on_delivery: e.target.checked
                       }
-                    })}
+                    }))}
                     className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   />
                   <span className="ml-2 text-sm text-gray-600">
@@ -427,13 +502,13 @@ export default function ProductManager() {
                   <input
                     type="checkbox"
                     checked={formData.allowed_payment_methods.card}
-                    onChange={(e) => setFormData({
-                      ...formData,
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
                       allowed_payment_methods: {
-                        ...formData.allowed_payment_methods,
+                        ...prev.allowed_payment_methods,
                         card: e.target.checked
                       }
-                    })}
+                    }))}
                     className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   />
                   <span className="ml-2 text-sm text-gray-600">
@@ -446,17 +521,46 @@ export default function ProductManager() {
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={() => {
+                  setShowForm(false);
+                  setEditingProduct(null);
+                  setFormData({
+                    name: '',
+                    description: '',
+                    price: 0,
+                    stock: 0,
+                    category: '',
+                    images: [],
+                    available_colors: [],
+                    color_images: [],
+                    allowed_payment_methods: {
+                      cash_on_delivery: true,
+                      card: true
+                    },
+                    delivery_time: '',
+                    show_delivery_time: false
+                  });
+                }}
                 className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                disabled={saving}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="h-4 w-4 mr-2" />
-                {editingProduct ? 'Actualizar' : 'Crear'}
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    {editingProduct ? 'Actualizar' : 'Crear'}
+                  </>
+                )}
               </button>
             </div>
           </form>
