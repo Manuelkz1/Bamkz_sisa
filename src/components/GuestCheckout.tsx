@@ -2,8 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Truck, CreditCard } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
+
+interface FormData {
+  fullName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  paymentMethod: string;
+}
 
 interface GuestCheckoutProps {
   onBack: () => void;
@@ -43,7 +53,6 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
     if ((!items || items.length === 0) && total === 0) {
       rehydrate(); 
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,37 +101,14 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         throw new Error(`Error al crear los items del pedido: ${itemsError.message}`);
       }
 
-      // Prepare data for email notification (common for both payment methods if successful here)
-      const notificationPayload = {
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
-        city: formData.city,
-        postalCode: formData.postalCode,
-        country: formData.country,
-        orderId: order.id,
-        paymentMethod: formData.paymentMethod,
-        totalAmount: currentCartTotal.toFixed(2),
-        items: currentCartItems.map(item => ({
-          product: { name: item.product.name, price: Number(item.product.price) },
-          quantity: item.quantity,
-          selectedColor: item.selectedColor || "N/A"
-        }))
-      };
-
       if (formData.paymentMethod === "mercadopago") {
         toast.loading("Redirigiendo a Mercado Pago...");
         const paymentPayload = {
           orderId: order.id,
           items: currentCartItems.map(item => ({
-            product_id: item.product.id,
-            product_name: item.product.name,
-            product_description: item.product.description || item.product.name,
-            product_image_url: (item.product.images && item.product.images.length > 0) ? item.product.images[0] : "",
-            product_category: item.product.category || "others",
-            product_price: Number(item.product.price),
+            product: { name: item.product.name, price: Number(item.product.price) },
             quantity: item.quantity,
+            selectedColor: item.selectedColor || "N/A"
           })),
           total: currentCartTotal,
           payer_email: formData.email
@@ -142,25 +128,16 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         cartStore.clearCart();
         sessionStorage.removeItem("checkout-form-bolt-v3");
 
-        // Usar window.location.replace para una redirección completa
-        window.location.replace(paymentData.init_point);
+        // Crear un formulario y enviarlo para evitar problemas de redirección
+        const form = document.createElement('form');
+        form.method = 'GET';
+        form.action = paymentData.init_point;
+        form.target = '_self';
+        document.body.appendChild(form);
+        form.submit();
+        
       } else { // Cash on delivery
         await supabase.from("orders").update({ status: "processing", payment_status: "pending_cod" }).eq("id", order.id);
-        console.log("[GuestCheckout] Cash on delivery order placed. Attempting to send notification email.");
-        try {
-          const { error: emailError } = await supabase.functions.invoke("send-order-notification", {
-            body: { orderData: notificationPayload },
-          });
-          if (emailError) {
-            console.error("[GuestCheckout] Error sending CoD notification email:", emailError.message);
-            toast.error("Pedido realizado, pero error al notificar por correo.");
-          } else {
-            console.log("[GuestCheckout] CoD order notification email function invoked.");
-          }
-        } catch (e: any) {
-          console.error("[GuestCheckout] Exception sending CoD notification email:", e.message);
-          toast.error("Pedido realizado, pero excepción al notificar por correo.");
-        }
         sessionStorage.removeItem("checkout-form-bolt-v3");
         onSuccess();
         toast.success("¡Pedido realizado con éxito! Pago contra entrega.");
@@ -188,7 +165,9 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
       <div className="max-w-lg mx-auto">
         <div className="relative mb-8">
           <button onClick={onBack} className="absolute left-0 top-1/2 -translate-y-1/2 p-2 text-gray-600 hover:text-gray-900 focus:outline-none">
-            <ArrowLeft className="h-6 w-6" />
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
           </button>
           <h2 className="text-center text-3xl font-extrabold text-gray-900">Finalizar compra</h2>
         </div>
@@ -255,13 +234,17 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
                       <div className="flex items-center">
                         <div className="text-sm">
                           <div className="flex items-center">
-                            <Truck className="h-5 w-5 text-gray-900 mr-2" />
+                            <svg className="h-5 w-5 text-gray-900 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
                             <p className="font-medium text-gray-900">Pago contra entrega</p>
                           </div>
                           <p className="text-gray-500">Paga en efectivo cuando recibas tu pedido</p>
                         </div>
                       </div>
-                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center ${formData.paymentMethod === "cash_on_delivery" ? "border-transparent bg-indigo-600" : "border-gray-300"}`}><div className={`rounded-full ${formData.paymentMethod === "cash_on_delivery" ? "h-2.5 w-2.5 bg-white" : ""}`} /></div>
+                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center ${formData.paymentMethod === "cash_on_delivery" ? "border-transparent bg-indigo-600" : "border-gray-300"}`}>
+                        <div className={`rounded-full ${formData.paymentMethod === "cash_on_delivery" ? "h-2.5 w-2.5 bg-white" : ""}`} />
+                      </div>
                     </div>
                   </label>
                 )}
@@ -272,13 +255,17 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
                       <div className="flex items-center">
                         <div className="text-sm">
                           <div className="flex items-center">
-                            <CreditCard className="h-5 w-5 text-gray-900 mr-2" />
+                            <svg className="h-5 w-5 text-gray-900 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
                             <p className="font-medium text-gray-900">Tarjeta, PSE o Efecty (Mercado Pago)</p>
                           </div>
                           <p className="text-gray-500">Paga en línea de forma segura</p>
                         </div>
                       </div>
-                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center ${formData.paymentMethod === "mercadopago" ? "border-transparent bg-indigo-600" : "border-gray-300"}`}><div className={`rounded-full ${formData.paymentMethod === "mercadopago" ? "h-2.5 w-2.5 bg-white" : ""}`} /></div>
+                      <div className={`h-5 w-5 rounded-full border flex items-center justify-center ${formData.paymentMethod === "mercadopago" ? "border-transparent bg-indigo-600" : "border-gray-300"}`}>
+                        <div className={`rounded-full ${formData.paymentMethod === "mercadopago" ? "h-2.5 w-2.5 bg-white" : ""}`} />
+                      </div>
                     </div>
                   </label>
                 )}
