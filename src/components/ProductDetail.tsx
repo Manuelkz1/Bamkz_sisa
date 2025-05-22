@@ -115,7 +115,27 @@ export default function ProductDetail() {
       : product;
 
     cartStore.addItem(productWithPromotion, quantity, selectedColor);
-    toast.success(`${quantity} ${quantity > 1 ? 'unidades agregadas' : 'unidad agregada'} al carrito`);
+    
+    // Mostrar una notificación más descriptiva
+    toast.success(
+      <div className="flex flex-col items-center">
+        <div className="font-bold mb-1">¡Producto agregado al carrito!</div>
+        <div className="text-sm">
+          {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
+          {selectedColor && ` (${selectedColor})`}
+        </div>
+      </div>,
+      {
+        duration: 3000,
+        icon: '🛒',
+        style: {
+          background: '#4F46E5',
+          color: '#ffffff',
+          minWidth: '300px'
+        }
+      }
+    );
+    
     cartStore.toggleCart(); // Abrir el carrito después de agregar el producto
   };
 
