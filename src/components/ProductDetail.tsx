@@ -52,7 +52,6 @@ export default function ProductDetail() {
         }
       }
 
-      // Load active promotion for this product
       const { data: promotionData, error: promotionError } = await supabase
         .from('promotion_products')
         .select(`
@@ -71,7 +70,6 @@ export default function ProductDetail() {
         setActivePromotion(promotionData.promotion);
       }
 
-      // Load related products
       const { data: related, error: relatedError } = await supabase
         .from('products')
         .select('*')
