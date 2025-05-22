@@ -48,143 +48,185 @@ export function GuestCheckout() {
     };
   }, []);
 
-  // Función mejorada para detectar Chrome
+  // Función mejorada para detectar Chrome y sus variantes
   const isChrome = () => {
-    if ('userAgentData' in navigator) {
-      return (navigator as any).userAgentData.brands.some((brand: any) => 
-        brand.brand.toLowerCase().includes('chrome')
-      );
+    try {
+      // Método moderno usando userAgentData
+      if ('userAgentData' in navigator) {
+        return (navigator as any).userAgentData.brands.some((brand: any) => 
+          brand.brand.toLowerCase().includes('chrome') ||
+          brand.brand.toLowerCase().includes('chromium')
+        );
+      }
+      
+      // Método tradicional usando userAgent
+      const ua = navigator.userAgent.toLowerCase();
+      return ua.includes('chrome') || ua.includes('chromium');
+    } catch (e) {
+      console.warn('Error detectando navegador:', e);
+      return false;
     }
-    return navigator.userAgent.indexOf('Chrome') > -1;
   };
 
-  // Función para manejar la redirección a Mercado Pago de manera segura
+  // Función mejorada para manejar la redirección a Mercado Pago
   const redirectToMercadoPago = (url: string) => {
-    console.log('Iniciando redirección a:', url);
+    console.log('Iniciando redirección a Mercado Pago:', url);
     
-    // Desactivar cualquier interacción adicional
+    // Desactivar interacciones para prevenir doble clicks
     document.body.style.pointerEvents = 'none';
     
-    // Mostrar un mensaje de redirección
+    // Mostrar mensaje de redirección
     toast.success('Redirigiendo a Mercado Pago...');
     
-    try {
-      // Crear una página intermedia de redirección para máxima compatibilidad
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Redirigiendo a Mercado Pago</title>
-          <style>
-            body {
-              font-family: -apple-system, system-ui, sans-serif;
-              background-color: #f5f5f5;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
-              margin: 0;
-              padding: 20px;
-              text-align: center;
-            }
-            .container {
-              background-color: white;
-              border-radius: 8px;
-              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-              padding: 30px;
-              max-width: 500px;
-            }
-            h1 {
-              color: #3d4852;
-              margin-bottom: 20px;
-            }
-            p {
-              color: #606f7b;
-              margin-bottom: 30px;
-            }
-            .loader {
-              border: 5px solid #f3f3f3;
-              border-top: 5px solid #3498db;
-              border-radius: 50%;
-              width: 50px;
-              height: 50px;
-              animation: spin 1s linear infinite;
-              margin: 0 auto 20px auto;
-            }
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-            .redirect-button {
-              background-color: #3490dc;
-              color: white;
-              border: none;
-              padding: 10px 20px;
-              border-radius: 4px;
-              cursor: pointer;
-              font-size: 16px;
-              transition: background-color 0.3s;
-            }
-            .redirect-button:hover {
-              background-color: #2779bd;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="loader"></div>
-            <h1>Redirigiendo a Mercado Pago</h1>
-            <p>Estás siendo redirigido a la plataforma de pago. Si no eres redirigido automáticamente en unos segundos, haz clic en el botón de abajo.</p>
-            <button id="redirectButton" class="redirect-button" onclick="window.location.href='${url}'">
-              Ir a Mercado Pago
-            </button>
-          </div>
-          
-          <script>
-            setTimeout(() => {
-              window.location.href = '${url}';
-            }, 1500);
-          </script>
-        </body>
-        </html>
-      `;
-      
-      // Crear un blob con el HTML
-      const blob = new Blob([html], { type: 'text/html' });
-      const redirectPageUrl = URL.createObjectURL(blob);
-      
-      // Navegar a la página de redirección
-      window.location.href = redirectPageUrl;
+    // Crear un contador de intentos
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    const attemptRedirect = () => {
+      attempts++;
+      console.log(`Intento de redirección #${attempts}`);
 
-      // Método específico para Chrome
-      if (isChrome()) {
-        console.log('Detectado Chrome, aplicando método específico de redirección');
-        setTimeout(() => {
-          if (document.body) {
-            const link = document.createElement('a');
-            link.href = url;
-            link.target = '_self';
-            link.rel = 'noopener noreferrer';
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => {
-              document.body.removeChild(link);
-            }, 100);
-          } else {
-            console.warn('document.body no disponible para redirección Chrome');
+      try {
+        if (isChrome()) {
+          console.log('Usando método específico para Chrome');
+          
+          // Método 1: Crear y hacer clic en un enlace
+          const link = document.createElement('a');
+          link.href = url;
+          link.target = '_self';
+          link.rel = 'noopener noreferrer';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Método 2: Redirección directa como respaldo
+          setTimeout(() => {
+            if (window.location.href === url) {
+              console.log('Redirección exitosa');
+              return;
+            }
+            
+            console.log('Intentando método de respaldo para Chrome');
             window.location.href = url;
-          }
-        }, 100);
+          }, 100);
+        } else {
+          // Para otros navegadores, crear una página intermedia
+          const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>Redirigiendo a Mercado Pago</title>
+              <style>
+                body {
+                  font-family: -apple-system, system-ui, sans-serif;
+                  background-color: #f5f5f5;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  height: 100vh;
+                  margin: 0;
+                  padding: 20px;
+                  text-align: center;
+                }
+                .container {
+                  background-color: white;
+                  border-radius: 8px;
+                  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                  padding: 30px;
+                  max-width: 500px;
+                }
+                h1 {
+                  color: #3d4852;
+                  margin-bottom: 20px;
+                }
+                p {
+                  color: #606f7b;
+                  margin-bottom: 30px;
+                }
+                .loader {
+                  border: 5px solid #f3f3f3;
+                  border-top: 5px solid #3498db;
+                  border-radius: 50%;
+                  width: 50px;
+                  height: 50px;
+                  animation: spin 1s linear infinite;
+                  margin: 0 auto 20px auto;
+                }
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                .redirect-button {
+                  background-color: #3490dc;
+                  color: white;
+                  border: none;
+                  padding: 10px 20px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-size: 16px;
+                  transition: background-color 0.3s;
+                }
+                .redirect-button:hover {
+                  background-color: #2779bd;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="loader"></div>
+                <h1>Redirigiendo a Mercado Pago</h1>
+                <p>Estás siendo redirigido a la plataforma de pago. Si no eres redirigido automáticamente en unos segundos, haz clic en el botón de abajo.</p>
+                <button onclick="window.location.href='${url}'" class="redirect-button">
+                  Ir a Mercado Pago
+                </button>
+              </div>
+              
+              <script>
+                // Intentar redirección automática
+                setTimeout(() => {
+                  window.location.href = '${url}';
+                }, 1500);
+
+                // Verificar si la redirección fue exitosa
+                setTimeout(() => {
+                  if (window.location.href === '${url}') return;
+                  // Si no, intentar otro método
+                  const form = document.createElement('form');
+                  form.method = 'GET';
+                  form.action = '${url}';
+                  form.target = '_self';
+                  document.body.appendChild(form);
+                  form.submit();
+                }, 2500);
+              </script>
+            </body>
+            </html>
+          `;
+          
+          const blob = new Blob([html], { type: 'text/html' });
+          const redirectPageUrl = URL.createObjectURL(blob);
+          window.location.href = redirectPageUrl;
+        }
+      } catch (error) {
+        console.error('Error en intento de redirección:', error);
+        
+        // Intentar nuevamente si no se alcanzó el límite
+        if (attempts < maxAttempts) {
+          console.log(`Reintentando redirección en 1 segundo...`);
+          setTimeout(attemptRedirect, 1000);
+        } else {
+          console.error('Se alcanzó el límite de intentos de redirección');
+          // Mostrar mensaje al usuario
+          toast.error('Error al redirigir. Por favor, haz clic en el botón de pago nuevamente.');
+          document.body.style.pointerEvents = 'auto';
+        }
       }
-    } catch (e) {
-      console.error('Error al crear página de redirección:', e);
-      
-      // Fallback directo en caso de error
-      console.log('Usando método de redirección directo como fallback');
-      window.location.href = url;
-    }
+    };
+
+    // Iniciar el proceso de redirección
+    attemptRedirect();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
