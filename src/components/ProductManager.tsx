@@ -129,6 +129,20 @@ export default function ProductManager() {
       let result;
       
       if (editingProduct?.id) {
+        // First check if the product still exists
+        const { data: existingProduct, error: checkError } = await supabase
+          .from('products')
+          .select('id')
+          .eq('id', editingProduct.id)
+          .single();
+
+        if (checkError) {
+          if (checkError.code === 'PGRST116') {
+            throw new Error('El producto ya no existe');
+          }
+          throw checkError;
+        }
+
         // Update existing product
         const { data, error: updateError } = await supabase
           .from('products')
@@ -137,7 +151,17 @@ export default function ProductManager() {
           .select()
           .single();
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          if (updateError.code === 'PGRST116') {
+            throw new Error('El producto ya no existe');
+          }
+          throw updateError;
+        }
+
+        if (!data) {
+          throw new Error('No se pudo actualizar el producto');
+        }
+
         result = data;
 
         // Update local state
@@ -157,6 +181,11 @@ export default function ProductManager() {
           .single();
 
         if (insertError) throw insertError;
+        
+        if (!data) {
+          throw new Error('No se pudo crear el producto');
+        }
+
         result = data;
 
         // Update local state
