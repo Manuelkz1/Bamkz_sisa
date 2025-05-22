@@ -76,8 +76,7 @@ export default function ProductManager() {
       const { error } = await supabase
         .from('products')
         .delete()
-        .eq('id', id)
-        .maybeSingle();
+        .eq('id', id);
 
       if (error) throw error;
       
@@ -118,38 +117,22 @@ export default function ProductManager() {
         updated_at: new Date().toISOString()
       };
 
-      console.log('Saving product data:', productData);
-
       if (editingProduct) {
-        console.log('Updating product:', editingProduct.id);
-        const { data, error } = await supabase
+        const { error: updateError } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id)
-          .select()
-          .maybeSingle();
+          .eq('id', editingProduct.id);
 
-        if (error) {
-          console.error('Error updating product:', error);
-          throw error;
-        }
+        if (updateError) throw updateError;
 
-        console.log('Product updated successfully:', data);
         toast.success('Producto actualizado');
       } else {
-        console.log('Creating new product');
-        const { data, error } = await supabase
+        const { error: insertError } = await supabase
           .from('products')
-          .insert([productData])
-          .select()
-          .maybeSingle();
+          .insert([productData]);
 
-        if (error) {
-          console.error('Error creating product:', error);
-          throw error;
-        }
+        if (insertError) throw insertError;
 
-        console.log('Product created successfully:', data);
         toast.success('Producto creado');
       }
 
