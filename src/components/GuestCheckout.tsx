@@ -56,37 +56,40 @@ export function GuestCheckout() {
     // Mostrar un mensaje de redirección
     toast.success('Redirigiendo a Mercado Pago...');
     
-    // Usar un enfoque más directo para la redirección
-    try {
-      console.log('Redirigiendo a:', url);
-      
-      // Crear un enlace y hacer clic en él (método más compatible)
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_self';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      
-      // Limpiar después del clic
-      setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
-        }
-      }, 100);
-      
-      // Fallback absoluto: si después de 3 segundos seguimos aquí, forzar la redirección
-      setTimeout(() => {
+    console.log('Redirigiendo a:', url);
+    
+    // Método 1: Redirección directa (compatible con Chrome)
+    window.location.href = url;
+    
+    // Método 2: Fallback con formulario POST (máxima compatibilidad)
+    setTimeout(() => {
+      try {
         if (window.location.href.indexOf('pago') === -1) {
-          console.log('Fallback final activado');
-          window.location.href = url;
+          console.log('Activando fallback con formulario POST');
+          
+          // Crear un formulario y enviarlo automáticamente
+          const form = document.createElement('form');
+          form.method = 'GET';
+          form.action = url;
+          form.target = '_self';
+          form.style.display = 'none';
+          
+          document.body.appendChild(form);
+          form.submit();
+          
+          // Limpiar después del envío
+          setTimeout(() => {
+            if (document.body.contains(form)) {
+              document.body.removeChild(form);
+            }
+          }, 100);
         }
-      }, 3000);
-    } catch (e) {
-      console.error('Error en redirección:', e);
-      // Último recurso
-      window.location.href = url;
-    }
+      } catch (e) {
+        console.error('Error en fallback de redirección:', e);
+        // Último recurso: abrir en nueva ventana
+        window.open(url, '_self');
+      }
+    }, 500);
   };
 
   const handleSubmit = async (e) => {
