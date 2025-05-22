@@ -115,21 +115,28 @@ export default function ProductDetail() {
 
     cartStore.addItem(productWithPromotion, quantity, selectedColor);
 
-    const CustomToast = () => (
-      <div className="flex items-center bg-indigo-600 text-white px-4 py-3 rounded-lg shadow-lg">
-        <ShoppingCart className="h-6 w-6 mr-3" />
-        <div>
-          <div className="font-semibold">¡Agregado al carrito!</div>
-          <div className="text-sm opacity-90">
+    toast((t) => (
+      <div className="flex items-center bg-indigo-600 text-white px-6 py-4 rounded-lg shadow-lg">
+        <div className="flex-shrink-0 mr-4">
+          <ShoppingCart className="h-6 w-6" />
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-lg">¡Producto agregado!</p>
+          <p className="text-sm opacity-90">
             {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
-            {selectedColor && <span className="ml-1">({selectedColor})</span>}
-          </div>
+            {selectedColor && ` (${selectedColor})`}
+          </p>
         </div>
       </div>
-    );
-
-    toast.custom((t) => <CustomToast />, {
+    ), {
       duration: 3000,
+      position: 'top-center',
+      style: {
+        background: 'none',
+        boxShadow: 'none',
+        border: 'none',
+        padding: 0,
+      },
     });
 
     cartStore.toggleCart();
