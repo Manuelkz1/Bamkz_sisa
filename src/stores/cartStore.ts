@@ -9,6 +9,7 @@ interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  selectedColor?: string;
   promotion?: {
     id?: string;
     type: string;
@@ -22,6 +23,7 @@ interface CartStore {
   showCart: boolean;
   loading: boolean;
   error: string | null;
+  promotionsApplied: Array<{productId: string, type: string, discount: number}>;
   
   // Getters
   getCartItems: () => CartItem[];
@@ -39,6 +41,7 @@ interface CartStore {
   toggleCart: () => void;
   checkout: (shippingInfo: any) => Promise<any>;
   applyPromotions: () => void;
+  rehydrate: () => void;
 }
 
 export const useCartStore = create<CartStore>((set, get) => ({
@@ -46,6 +49,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   showCart: false,
   loading: false,
   error: null,
+  promotionsApplied: [],
   
   // Getters
   getCartItems: () => get().items,
@@ -103,6 +107,19 @@ export const useCartStore = create<CartStore>((set, get) => ({
     get().applyPromotions();
   },
   
+  rehydrate: () => {
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        set({ items: parsedCart });
+        get().applyPromotions();
+      } catch (e) {
+        console.error("Error parsing cart from localStorage", e);
+      }
+    }
+  },
+  
   saveCart: () => {
     localStorage.setItem('cart', JSON.stringify(get().items));
   },
@@ -130,7 +147,14 @@ export const useCartStore = create<CartStore>((set, get) => ({
   
   // Added this function to fix the error
   addItem: (product, quantity = 1, selectedColor) => {
-    // Create a cart item from the product with the selected color info if needed
+    console.log("addItem called with", product, quantity, selectedColor);
+    
+    if (!product || !product.id) {
+      console.error("Invalid product provided to addItem:", product);
+      return;
+    }
+    
+    // Create a cart item from the product
     const cartItem = {
       id: product.id,
       name: product.name,
@@ -140,8 +164,30 @@ export const useCartStore = create<CartStore>((set, get) => ({
       selectedColor: selectedColor
     };
     
-    // Call the existing addToCart function
-    get().addToCart(cartItem, quantity);
+    // Get existing items
+    const items = get().items;
+    const existingProductIndex = items.findIndex(item => 
+      item.id === product.id && item.selectedColor === selectedColor
+    );
+    
+    let updatedItems;
+    if (existingProductIndex >= 0) {
+      // If product already exists with the same color, update quantity
+      updatedItems = [...items];
+      updatedItems[existingProductIndex].quantity += quantity;
+    } else {
+      // Add new product to cart
+      updatedItems = [...items, cartItem];
+    }
+    
+    set({ items: updatedItems });
+    
+    // Apply promotions and save cart
+    get().applyPromotions();
+    get().saveCart();
+    
+    // Open the cart
+    set({ showCart: true });
   },
   
   updateQuantity: (productId, quantity) => {
@@ -186,6 +232,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   
   clearCart: () => {
     set({ items: [] });
+    set({ promotionsApplied: [] });
     get().saveCart();
   },
   
@@ -197,10 +244,15 @@ export const useCartStore = create<CartStore>((set, get) => ({
   applyPromotions: () => {
     const promotionStore = usePromotionStore.getState();
     const activePromotions = promotionStore.getActivePromotions();
+    const currentItems = get().items;
+    const promotionsApplied = [];
     
-    if (activePromotions.length === 0) return;
+    if (activePromotions.length === 0 || currentItems.length === 0) {
+      set({ promotionsApplied: [] });
+      return;
+    }
     
-    const updatedItems = get().items.map(item => {
+    const updatedItems = currentItems.map(item => {
       // Buscar promociones aplicables a este producto
       const applicablePromotion = activePromotions.find(promo => {
         // Si la promoción tiene product_ids, verificar si este producto está incluido
@@ -208,14 +260,36 @@ export const useCartStore = create<CartStore>((set, get) => ({
           return promo.product_ids.includes(item.id);
         }
         
-        // Si la promoción tiene category_ids, verificar si este producto pertenece a alguna categoría
-        // Esto requeriría información adicional sobre las categorías del producto
-        
         // Si no hay restricciones específicas, la promoción se aplica a todos los productos
-        return !promo.product_ids && !promo.category_ids;
+        return !promo.product_ids;
       });
       
       if (applicablePromotion) {
+        let discountAmount = 0;
+        
+        // Calculate the discount amount based on promotion type
+        if (applicablePromotion.type === 'discount' && applicablePromotion.total_price) {
+          discountAmount = (item.price - applicablePromotion.total_price) * item.quantity;
+        } else if (applicablePromotion.type === '2x1' && item.quantity >= 2) {
+          const fullPriceSets = Math.floor(item.quantity / 2);
+          discountAmount = fullPriceSets * item.price;
+        } else if (applicablePromotion.type === '3x2' && item.quantity >= 3) {
+          const fullPriceSets = Math.floor(item.quantity / 3);
+          discountAmount = fullPriceSets * item.price;
+        } else if (applicablePromotion.type === '3x1' && item.quantity >= 3) {
+          const fullPriceSets = Math.floor(item.quantity / 3);
+          discountAmount = fullPriceSets * 2 * item.price;
+        }
+        
+        // Add to the list of applied promotions
+        if (discountAmount > 0) {
+          promotionsApplied.push({
+            productId: item.id,
+            type: applicablePromotion.type,
+            discount: discountAmount
+          });
+        }
+        
         return {
           ...item,
           promotion: {
@@ -227,10 +301,18 @@ export const useCartStore = create<CartStore>((set, get) => ({
         };
       }
       
+      // Remove promotion if no longer applicable
+      if (item.promotion) {
+        return { ...item, promotion: undefined };
+      }
+      
       return item;
     });
     
-    set({ items: updatedItems });
+    set({ 
+      items: updatedItems,
+      promotionsApplied
+    });
   },
   
   checkout: async (shippingInfo) => {
