@@ -114,6 +114,7 @@ export default function ProductDetail() {
 
     cartStore.addItem(productWithPromotion, qty, selectedColor);
     toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
+    cartStore.toggleCart(); // Abrir el carrito después de agregar el producto
   };
 
   const handleBuyNow = (qty: number = 1) => {
