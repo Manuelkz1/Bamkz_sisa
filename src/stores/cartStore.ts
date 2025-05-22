@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { usePromotionStore } from './promotionStore';
+import { Product, CartItem as CartItemType } from '../types';
 
 interface CartItem {
   id: string;
@@ -20,7 +21,8 @@ interface CartItem {
 
 interface CartStore {
   items: CartItem[];
-  showCart: boolean;
+  isOpen: boolean; // Correct property name for cart visibility
+  showCart: boolean; 
   loading: boolean;
   error: string | null;
   promotionsApplied: Array<{productId: string, type: string, discount: number}>;
@@ -37,25 +39,29 @@ interface CartStore {
   addItem: (product: any, quantity?: number, selectedColor?: string) => void; // Added this function
   updateQuantity: (productId: string, quantity: number) => void;
   removeFromCart: (productId: string) => void;
+  removeItem: (productId: string) => void; // Added for compatibility
   clearCart: () => void;
-  toggleCart: () => void;
+  toggleCart: () => void; // Toggles cart visibility
   checkout: (shippingInfo: any) => Promise<any>;
   applyPromotions: () => void;
   rehydrate: () => void;
+  total: number; // Added total property
 }
 
 export const useCartStore = create<CartStore>((set, get) => ({
   items: [],
+  isOpen: false,
   showCart: false,
   loading: false,
   error: null,
   promotionsApplied: [],
+  total: 0, // Initialize total property
   
   // Getters
   getCartItems: () => get().items,
   
   getCartTotal: () => {
-    return get().items.reduce((total, item) => {
+    const total = get().items.reduce((sum, item) => {
       // Calcular precio con promociones si aplica
       let finalPrice = item.price;
       
@@ -89,8 +95,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
         finalPrice = item.price * item.quantity;
       }
       
-      return total + finalPrice;
+      return sum + finalPrice;
     }, 0);
+    
+    // Also update the total in the state
+    set({total: total});
+    
+    return total;
   },
   
   getCartCount: () => {
@@ -101,10 +112,15 @@ export const useCartStore = create<CartStore>((set, get) => ({
   initCart: () => {
     const savedCart = localStorage.getItem('cart');
     if (savedCart) {
-      set({ items: JSON.parse(savedCart) });
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        set({ items: parsedCart });
+        get().applyPromotions();
+        get().getCartTotal(); // Update total
+      } catch (e) {
+        console.error("Error parsing cart from localStorage", e);
+      }
     }
-    // Aplicar promociones al inicializar el carrito
-    get().applyPromotions();
   },
   
   rehydrate: () => {
@@ -114,6 +130,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
         const parsedCart = JSON.parse(savedCart);
         set({ items: parsedCart });
         get().applyPromotions();
+        get().getCartTotal(); // Update total
       } catch (e) {
         console.error("Error parsing cart from localStorage", e);
       }
@@ -125,6 +142,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
   
   addToCart: (product, quantity = 1) => {
+    console.log("addToCart called with", product, quantity);
     const items = get().items;
     const existingProductIndex = items.findIndex(item => item.id === product.id);
     
@@ -140,6 +158,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
     
     // Aplicar promociones después de modificar el carrito
     get().applyPromotions();
+    get().getCartTotal(); // Update total
     
     // Guardar carrito actualizado
     get().saveCart();
@@ -184,10 +203,10 @@ export const useCartStore = create<CartStore>((set, get) => ({
     
     // Apply promotions and save cart
     get().applyPromotions();
-    get().saveCart();
+    get().getCartTotal(); // Update total
     
     // Open the cart
-    set({ showCart: true });
+    set({ isOpen: true });
   },
   
   updateQuantity: (productId, quantity) => {
@@ -209,6 +228,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
       
       // Aplicar promociones después de modificar el carrito
       get().applyPromotions();
+      get().getCartTotal(); // Update total
       
       get().saveCart();
     }
@@ -225,7 +245,25 @@ export const useCartStore = create<CartStore>((set, get) => ({
       
       // Aplicar promociones después de modificar el carrito
       get().applyPromotions();
+      get().getCartTotal(); // Update total
       
+      get().saveCart();
+    }
+  },
+  
+  // Added for compatibility
+  removeItem: (productId) => {
+    const items = get().items;
+    const index = items.findIndex(item => item.id === productId);
+    
+    if (index >= 0) {
+      const updatedItems = [...items];
+      updatedItems.splice(index, 1);
+      set({ items: updatedItems });
+      
+      // Apply promotions and save cart
+      get().applyPromotions();
+      get().getCartTotal(); // Update total
       get().saveCart();
     }
   },
@@ -233,11 +271,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
   clearCart: () => {
     set({ items: [] });
     set({ promotionsApplied: [] });
+    set({ total: 0 });
     get().saveCart();
   },
   
   toggleCart: () => {
-    set(state => ({ showCart: !state.showCart }));
+    console.log("toggleCart called, current isOpen:", get().isOpen);
+    set(state => ({ isOpen: !state.isOpen }));
   },
   
   // Nueva función para aplicar promociones activas a los productos del carrito
@@ -313,6 +353,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
       items: updatedItems,
       promotionsApplied
     });
+    
+    // Update total
+    get().getCartTotal();
   },
   
   checkout: async (shippingInfo) => {

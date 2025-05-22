@@ -9,7 +9,9 @@ export default function Cart() {
   if (!cartStore.isOpen) return null;
 
   const findPromotion = (productId: string) => {
-    return cartStore.promotionsApplied.find(p => p.productId === productId);
+    return cartStore.promotionsApplied ? 
+      cartStore.promotionsApplied.find(p => p.productId === productId) : 
+      undefined;
   };
 
   const getPromotionLabel = (type: string) => {
@@ -22,7 +24,9 @@ export default function Cart() {
     }
   };
 
-  const totalDiscount = cartStore.promotionsApplied ? cartStore.promotionsApplied.reduce((sum, promo) => sum + (promo.discount || 0), 0) : 0;
+  const totalDiscount = cartStore.promotionsApplied ? 
+    cartStore.promotionsApplied.reduce((sum, promo) => sum + (promo.discount || 0), 0) : 
+    0;
 
   return (
     <div className="fixed inset-0 z-50">
@@ -34,6 +38,7 @@ export default function Cart() {
             <button
               onClick={cartStore.toggleCart}
               className="text-gray-400 hover:text-gray-500"
+              type="button"
             >
               <X className="h-6 w-6" />
             </button>
@@ -57,34 +62,37 @@ export default function Cart() {
                 {cartStore.items.map((item) => {
                   const promotion = item.promotion;
                   return (
-                    <div key={item.product.id} className="flex py-6">
+                    <div key={item.id + (item.selectedColor || '')} className="flex py-6">
                       <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-md border">
                         <img
-                          src={item.product.images[0]}
-                          alt={item.product.name}
+                          src={item.image}
+                          alt={item.name}
                           className="h-full w-full object-cover"
                         />
                       </div>
                       <div className="ml-4 flex flex-1 flex-col">
                         <div className="flex justify-between text-base font-medium text-gray-900">
-                          <h3>{item.product.name}</h3>
+                          <h3>{item.name}</h3>
                           <div className="text-right">
                             {promotion ? (
                               <>
                                 {promotion.type === 'discount' ? (
                                   <>
-                                    <p className="text-sm text-gray-500 line-through">${item.product.price}</p>
+                                    <p className="text-sm text-gray-500 line-through">${item.price}</p>
                                     <p className="text-red-600">${(promotion.total_price || 0).toFixed(2)}</p>
                                   </>
                                 ) : (
-                                  <p>${item.product.price}</p>
+                                  <p>${item.price}</p>
                                 )}
                               </>
                             ) : (
-                              <p>${item.product.price}</p>
+                              <p>${item.price}</p>
                             )}
                           </div>
                         </div>
+                        {item.selectedColor && (
+                          <p className="mt-1 text-sm text-gray-500">Color: {item.selectedColor}</p>
+                        )}
                         {promotion && (
                           <div className="mt-1 flex items-center">
                             <Tag className="h-3 w-3 text-red-600 mr-1" />
@@ -95,21 +103,24 @@ export default function Cart() {
                         )}
                         <div className="flex items-center mt-2">
                           <button
-                            onClick={() => cartStore.updateQuantity(item.product.id, item.quantity - 1)}
+                            onClick={() => cartStore.updateQuantity(item.id, item.quantity - 1)}
                             className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
+                            type="button"
                           >
                             <Minus className="h-4 w-4" />
                           </button>
                           <span className="mx-2 text-gray-600">{item.quantity}</span>
                           <button
-                            onClick={() => cartStore.updateQuantity(item.product.id, item.quantity + 1)}
+                            onClick={() => cartStore.updateQuantity(item.id, item.quantity + 1)}
                             className="rounded-full p-1 text-gray-600 hover:bg-gray-100"
+                            type="button"
                           >
                             <Plus className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => cartStore.removeItem(item.product.id)}
+                            onClick={() => cartStore.removeItem(item.id)}
                             className="ml-4 text-indigo-600 hover:text-indigo-500"
+                            type="button"
                           >
                             Eliminar
                           </button>

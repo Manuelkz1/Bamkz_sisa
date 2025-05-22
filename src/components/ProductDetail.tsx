@@ -107,6 +107,7 @@ export default function ProductDetail() {
       return;
     }
 
+    console.log("Adding to cart:", product.name, qty, selectedColor);
     cartStore.addItem(product, qty, selectedColor);
     toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
   };
@@ -119,6 +120,7 @@ export default function ProductDetail() {
       return;
     }
 
+    console.log("Buy now:", product.name, qty, selectedColor);
     cartStore.clearCart();
     cartStore.addItem(product, qty, selectedColor);
     navigate('/checkout');
@@ -190,6 +192,7 @@ export default function ProductDetail() {
           <button
             onClick={() => navigate('/')}
             className="mt-4 inline-flex items-center text-indigo-600 hover:text-indigo-500"
+            type="button"
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
             Volver al inicio
@@ -205,6 +208,7 @@ export default function ProductDetail() {
         <button
           onClick={() => navigate('/')}
           className="mb-8 inline-flex items-center text-gray-600 hover:text-gray-900"
+          type="button"
         >
           <ArrowLeft className="h-5 w-5 mr-2" />
           Volver
@@ -230,6 +234,7 @@ export default function ProductDetail() {
                     className={`aspect-w-1 aspect-h-1 rounded-lg overflow-hidden ${
                       selectedImage === image ? 'ring-2 ring-indigo-500' : ''
                     }`}
+                    type="button"
                   >
                     <img
                       src={image}
@@ -252,6 +257,7 @@ export default function ProductDetail() {
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  type="button"
                 >
                   <Share2 className="h-4 w-4 mr-2" />
                   Compartir
@@ -342,6 +348,7 @@ export default function ProductDetail() {
                           }
                         }
                       }}
+                      type="button"
                       className={`px-3 py-1 rounded-full text-sm ${
                         selectedColor === color
                           ? 'bg-indigo-600 text-white'
