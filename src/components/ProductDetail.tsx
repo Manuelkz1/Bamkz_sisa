@@ -100,8 +100,7 @@ export default function ProductDetail() {
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevenir la navegación por defecto
-    
+    e.preventDefault();
     if (!product) return;
     
     if (product.available_colors?.length && !selectedColor) {
@@ -115,33 +114,29 @@ export default function ProductDetail() {
       : product;
 
     cartStore.addItem(productWithPromotion, quantity, selectedColor);
-    
-    // Mostrar una notificación más descriptiva
-    toast.success(
-      <div className="flex flex-col items-center">
-        <div className="font-bold mb-1">¡Producto agregado al carrito!</div>
-        <div className="text-sm">
-          {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
-          {selectedColor && ` (${selectedColor})`}
+
+    const CustomToast = () => (
+      <div className="flex items-center bg-indigo-600 text-white px-4 py-3 rounded-lg shadow-lg">
+        <ShoppingCart className="h-6 w-6 mr-3" />
+        <div>
+          <div className="font-semibold">¡Agregado al carrito!</div>
+          <div className="text-sm opacity-90">
+            {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
+            {selectedColor && <span className="ml-1">({selectedColor})</span>}
+          </div>
         </div>
-      </div>,
-      {
-        duration: 3000,
-        icon: '🛒',
-        style: {
-          background: '#4F46E5',
-          color: '#ffffff',
-          minWidth: '300px'
-        }
-      }
+      </div>
     );
-    
-    cartStore.toggleCart(); // Abrir el carrito después de agregar el producto
+
+    toast.custom((t) => <CustomToast />, {
+      duration: 3000,
+    });
+
+    cartStore.toggleCart();
   };
 
   const handleBuyNow = (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevenir la navegación por defecto
-    
+    e.preventDefault();
     if (!product) return;
 
     if (product.available_colors?.length && !selectedColor) {
