@@ -41,47 +41,99 @@ export function GuestCheckout() {
   const redirectToMercadoPago = (url: string) => {
     console.log('Iniciando redirección a Mercado Pago:', url);
     
-    // Crear y enviar formulario
-    const form = document.createElement('form');
-    form.method = 'GET';
-    form.action = url;
-    form.target = '_self';
+    // Crear página de redirección intermedia
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Redirigiendo a Mercado Pago</title>
+        <style>
+          body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+          }
+          .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            max-width: 500px;
+          }
+          .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #4f46e5;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .button {
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+          }
+          .button:hover {
+            background-color: #4338ca;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="loader"></div>
+          <h2>Redirigiendo a Mercado Pago</h2>
+          <p>Por favor espera un momento...</p>
+          <button id="redirectButton" class="button">
+            Continuar a Mercado Pago
+          </button>
+        </div>
+        
+        <script>
+          const redirectUrl = ${JSON.stringify(url)};
+          const redirectButton = document.getElementById('redirectButton');
+          
+          function redirect() {
+            window.location.replace(redirectUrl);
+          }
+          
+          // Intentar redirección automática
+          setTimeout(redirect, 1500);
+          
+          // Botón como respaldo
+          redirectButton.addEventListener('click', redirect);
+        </script>
+      </body>
+      </html>
+    `;
     
-    // Agregar un campo oculto con timestamp para evitar caché
-    const timestampField = document.createElement('input');
-    timestampField.type = 'hidden';
-    timestampField.name = '_t';
-    timestampField.value = Date.now().toString();
-    form.appendChild(timestampField);
+    // Crear blob y URL
+    const blob = new Blob([html], { type: 'text/html' });
+    const redirectUrl = URL.createObjectURL(blob);
     
-    // Mostrar mensaje de redirección
-    toast.success('Redirigiendo a Mercado Pago...');
+    // Limpiar datos
+    cartStore.clearCart();
+    sessionStorage.removeItem("checkout-form");
     
-    // Agregar formulario al DOM y enviarlo
-    document.body.appendChild(form);
-    
-    // Establecer un timeout para detectar si la redirección falló
-    const redirectTimeout = setTimeout(() => {
-      toast.error('Error al redirigir. Intentando método alternativo...');
-      window.location.href = url;
-    }, 3000);
-    
-    // Enviar el formulario
-    try {
-      form.submit();
-      
-      // Limpiar datos después de un breve delay
-      setTimeout(() => {
-        cartStore.clearCart();
-        sessionStorage.removeItem("checkout-form");
-        document.body.removeChild(form);
-        clearTimeout(redirectTimeout);
-      }, 1000);
-    } catch (error) {
-      console.error('Error en redirección:', error);
-      clearTimeout(redirectTimeout);
-      window.location.href = url;
-    }
+    // Redirigir a la página intermedia
+    window.location.href = redirectUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,7 +228,7 @@ export function GuestCheckout() {
             throw new Error(paymentError?.message || 'Error al crear preferencia de pago');
           }
           
-          console.log('Preferencia de pago creada correctamente');
+          console.log('Preferencia de pago creada:', payment);
           redirectToMercadoPago(payment.init_point);
           return;
           

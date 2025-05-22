@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 204,
@@ -16,9 +17,13 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Processing payment creation request');
+    
     const { orderId, items, total } = await req.json();
+    console.log('Request data:', { orderId, itemsCount: items?.length, total });
 
     if (!orderId || !items || !Array.isArray(items) || items.length === 0 || !total) {
+      console.error('Invalid request data');
       return new Response(
         JSON.stringify({ error: 'Datos inválidos' }),
         { 
@@ -30,6 +35,7 @@ serve(async (req) => {
 
     const accessToken = Deno.env.get('MERCADOPAGO_ACCESS_TOKEN');
     if (!accessToken) {
+      console.error('MercadoPago access token not configured');
       throw new Error('Token de MercadoPago no configurado');
     }
 
@@ -39,30 +45,46 @@ serve(async (req) => {
 
     const preference = new Preference(client);
     
+    // Get origin for back_urls
+    const origin = req.headers.get('origin') || 'https://xawsitihehpebojtkunk.supabase.co';
+    console.log('Using origin:', origin);
+
+    // Construct preference data
     const preferenceData = {
       items: items.map(item => ({
         title: item.product.name,
         quantity: item.quantity,
         currency_id: "COP",
-        unit_price: Number(item.product.price)
+        unit_price: Number(item.product.price),
+        description: `Orden #${orderId}`,
       })),
       back_urls: {
-        success: `${req.headers.get('origin')}/pago?status=approved&order_id=${orderId}`,
-        failure: `${req.headers.get('origin')}/pago?status=rejected&order_id=${orderId}`,
-        pending: `${req.headers.get('origin')}/pago?status=pending&order_id=${orderId}`
+        success: `${origin}/pago?status=approved&order_id=${orderId}`,
+        failure: `${origin}/pago?status=rejected&order_id=${orderId}`,
+        pending: `${origin}/pago?status=pending&order_id=${orderId}`
       },
       auto_return: "approved",
       external_reference: orderId,
-      notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/payment-webhook`
+      expires: true,
+      expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
+      notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/payment-webhook`,
+      statement_descriptor: "Calidad Premium",
+      binary_mode: true // Only approved or rejected, no pending
     };
 
+    console.log('Creating MercadoPago preference');
     const response = await preference.create({ body: preferenceData });
+    console.log('Preference created:', { 
+      id: response.id,
+      init_point: response.init_point 
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         init_point: response.init_point,
-        preference_id: response.id
+        preference_id: response.id,
+        sandbox_init_point: response.sandbox_init_point
       }),
       { 
         status: 200,
@@ -71,9 +93,13 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error creating payment:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        timestamp: new Date().toISOString(),
+        details: error.stack
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
