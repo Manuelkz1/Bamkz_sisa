@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { Package, Edit, Trash2, Plus, Image as ImageIcon, Save, X } from 'lucide-react';
@@ -26,6 +26,7 @@ export default function ProductManager() {
     delivery_time: '',
     show_delivery_time: false
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadProducts();
@@ -163,14 +164,6 @@ export default function ProductManager() {
         }
 
         result = data;
-
-        // Update local state
-        setProducts(prevProducts => 
-          prevProducts.map(p => 
-            p.id === editingProduct.id ? result : p
-          )
-        );
-
         toast.success('Producto actualizado');
       } else {
         // Create new product
@@ -187,11 +180,15 @@ export default function ProductManager() {
         }
 
         result = data;
-
-        // Update local state
-        setProducts(prevProducts => [result, ...prevProducts]);
         toast.success('Producto creado');
       }
+
+      // Update local state
+      setProducts(prevProducts => 
+        editingProduct?.id
+          ? prevProducts.map(p => p.id === editingProduct.id ? result : p)
+          : [result, ...prevProducts]
+      );
 
       // Reset form
       setShowForm(false);
@@ -212,9 +209,6 @@ export default function ProductManager() {
         delivery_time: '',
         show_delivery_time: false
       });
-
-      // Reload products to ensure we have the latest data
-      await loadProducts();
 
     } catch (error: any) {
       console.error('Error saving product:', error);
@@ -404,6 +398,7 @@ export default function ProductManager() {
               <div className="mt-1 flex items-center">
                 <input
                   type="file"
+                  ref={fileInputRef}
                   accept="image/jpeg,image/png,image/webp"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
