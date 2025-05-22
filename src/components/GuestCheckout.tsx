@@ -119,7 +119,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
             product_id: item.product.id,
             product_name: item.product.name,
             product_description: item.product.description || item.product.name,
-            product_image_url: (item.product.images && item.product.images.length > 0) ? item.product.images[0] : (item.product.image_url || ""),
+            product_image_url: (item.product.images && item.product.images.length > 0) ? item.product.images[0] : "",
             product_category: item.product.category || "others",
             product_price: Number(item.product.price),
             quantity: item.quantity,
@@ -127,15 +127,24 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
           total: currentCartTotal,
           payer_email: formData.email
         };
-        const { data: paymentData, error: paymentError } = await supabase.functions.invoke("create-payment", { body: paymentPayload });
+
+        const { data: paymentData, error: paymentError } = await supabase.functions.invoke("create-payment", { 
+          body: paymentPayload 
+        });
+
         toast.dismiss();
         if (paymentError || !paymentData || !paymentData.init_point) {
           await supabase.from("orders").update({ payment_status: "failed", status: "payment_creation_failed" }).eq("id", order.id);
           throw new Error(paymentData?.error || paymentError?.message || "Error al generar el enlace de pago de Mercado Pago");
         }
-        window.location.href = paymentData.init_point;
+
+        // Limpiar carrito y datos del formulario antes de redirigir
+        cartStore.clearCart();
+        sessionStorage.removeItem("checkout-form-bolt-v3");
+
+        // Usar window.location.replace para una redirección completa
+        window.location.replace(paymentData.init_point);
       } else { // Cash on delivery
-        // For CoD, order is considered placed. Update status and send notification.
         await supabase.from("orders").update({ status: "processing", payment_status: "pending_cod" }).eq("id", order.id);
         console.log("[GuestCheckout] Cash on delivery order placed. Attempting to send notification email.");
         try {
@@ -155,7 +164,7 @@ export function GuestCheckout({ onBack, onSuccess }: GuestCheckoutProps) {
         sessionStorage.removeItem("checkout-form-bolt-v3");
         onSuccess();
         toast.success("¡Pedido realizado con éxito! Pago contra entrega.");
-        navigate("/pago?status=pending_cod&order_id=" + order.id); // Navigate with order_id for CoD status page
+        navigate("/pago?status=pending_cod&order_id=" + order.id);
       }
     } catch (error: any) {
       console.error("[GuestCheckout] Error in handleSubmit:", error);
