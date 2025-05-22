@@ -16,6 +16,18 @@ interface CompanySettings {
   updated_at: string;
 }
 
+// Default settings to use when no row exists
+const defaultSettings: Omit<CompanySettings, 'id' | 'updated_at'> = {
+  name: 'Calidad Premium',
+  logo_url: null,
+  hero_title: 'Productos de Calidad Premium',
+  hero_subtitle: 'Descubre nuestra selección de productos exclusivos con la mejor calidad garantizada',
+  logo_width: 200,
+  logo_height: 60,
+  maintain_ratio: true,
+  dropshipping_shipping_cost: 0
+};
+
 export function CompanySettings() {
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,37 +48,98 @@ export function CompanySettings() {
     loadSettings();
   }, []);
 
-  const loadSettings = async () => {
+  const createDefaultSettings = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('company_settings')
-        .select('*')
+        .insert({
+          ...defaultSettings,
+          updated_at: new Date().toISOString()
+        })
+        .select()
         .single();
 
       if (error) throw error;
-
-      setSettings(data);
-      setCompanyName(data.name);
-      setHeroTitle(data.hero_title);
-      setHeroSubtitle(data.hero_subtitle);
-      setPreviewLogo(data.logo_url);
-      setLogoWidth(data.logo_width);
-      setLogoHeight(data.logo_height);
-      setMaintainRatio(data.maintain_ratio);
-      setDropshippingShippingCost(data.dropshipping_shipping_cost || 0);
       
-      if (data.logo_url && data.maintain_ratio) {
+      return data;
+    } catch (error: any) {
+      console.error('Error creating default settings:', error);
+      throw error;
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      
+      // First try to get existing settings
+      let { data, error } = await supabase
+        .from('company_settings')
+        .select('*')
+        .limit(1);
+
+      // If no settings exist, create default ones
+      if ((!data || data.length === 0) && !error) {
+        try {
+          data = [await createDefaultSettings()];
+        } catch (createError) {
+          console.error('Error creating default settings:', createError);
+          // Fall back to using default settings without saving to DB
+          data = [{
+            id: 'temp-id',
+            ...defaultSettings,
+            updated_at: new Date().toISOString()
+          }];
+        }
+      } else if (error) {
+        console.error('Error loading settings:', error);
+        // Fall back to using default settings without saving to DB
+        data = [{
+          id: 'temp-id',
+          ...defaultSettings,
+          updated_at: new Date().toISOString()
+        }];
+      }
+
+      const settingsData = data[0];
+      setSettings(settingsData);
+      setCompanyName(settingsData.name || defaultSettings.name);
+      setHeroTitle(settingsData.hero_title || defaultSettings.hero_title);
+      setHeroSubtitle(settingsData.hero_subtitle || defaultSettings.hero_subtitle);
+      setPreviewLogo(settingsData.logo_url);
+      setLogoWidth(settingsData.logo_width || defaultSettings.logo_width);
+      setLogoHeight(settingsData.logo_height || defaultSettings.logo_height);
+      setMaintainRatio(settingsData.maintain_ratio !== undefined ? settingsData.maintain_ratio : defaultSettings.maintain_ratio);
+      setDropshippingShippingCost(settingsData.dropshipping_shipping_cost || defaultSettings.dropshipping_shipping_cost);
+      
+      if (settingsData.logo_url && settingsData.maintain_ratio) {
         // Load image to get natural dimensions
         const img = new Image();
         img.onload = () => {
           setAspectRatio(img.naturalWidth / img.naturalHeight);
         };
-        img.src = data.logo_url;
+        img.src = settingsData.logo_url;
       }
     } catch (error: any) {
       console.error('Error loading settings:', error);
       toast.error('Error al cargar la configuración');
+      
+      // Fall back to default settings
+      const defaultData = {
+        id: 'temp-id',
+        ...defaultSettings,
+        updated_at: new Date().toISOString()
+      };
+      
+      setSettings(defaultData);
+      setCompanyName(defaultData.name);
+      setHeroTitle(defaultData.hero_title);
+      setHeroSubtitle(defaultData.hero_subtitle);
+      setPreviewLogo(defaultData.logo_url);
+      setLogoWidth(defaultData.logo_width);
+      setLogoHeight(defaultData.logo_height);
+      setMaintainRatio(defaultData.maintain_ratio);
+      setDropshippingShippingCost(defaultData.dropshipping_shipping_cost);
     } finally {
       setLoading(false);
     }
@@ -193,26 +266,44 @@ export function CompanySettings() {
         }
       }
 
-      // Update settings
-      const { error } = await supabase
-        .from('company_settings')
-        .update({
-          name: companyName,
-          logo_url: logoUrl,
-          hero_title: heroTitle,
-          hero_subtitle: heroSubtitle,
-          logo_width: logoWidth,
-          logo_height: logoHeight,
-          maintain_ratio: maintainRatio,
-          dropshipping_shipping_cost: dropshippingShippingCost,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', settings.id);
+      const updateData = {
+        name: companyName,
+        logo_url: logoUrl,
+        hero_title: heroTitle,
+        hero_subtitle: heroSubtitle,
+        logo_width: logoWidth,
+        logo_height: logoHeight,
+        maintain_ratio: maintainRatio,
+        dropshipping_shipping_cost: dropshippingShippingCost,
+        updated_at: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      let result;
+      if (settings.id === 'temp-id') {
+        // If we're working with temporary settings, create a new record
+        const { data, error } = await supabase
+          .from('company_settings')
+          .insert(updateData)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+      } else {
+        // Otherwise update the existing record
+        const { data, error } = await supabase
+          .from('company_settings')
+          .update(updateData)
+          .eq('id', settings.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+      }
 
       toast.success('Configuración guardada exitosamente');
-      loadSettings();
+      setSettings(result);
     } catch (error: any) {
       console.error('Error saving settings:', error);
       toast.error('Error al guardar la configuración');
