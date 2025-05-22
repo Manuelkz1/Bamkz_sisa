@@ -117,13 +117,22 @@ export default function ProductManager() {
         updated_at: new Date().toISOString()
       };
 
-      if (editingProduct) {
-        const { error: updateError } = await supabase
+      if (editingProduct?.id) {
+        const { data, error: updateError } = await supabase
           .from('products')
           .update(productData)
-          .eq('id', editingProduct.id);
+          .eq('id', editingProduct.id)
+          .select()
+          .single();
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('Error updating product:', updateError);
+          throw new Error(updateError.message);
+        }
+
+        if (!data) {
+          throw new Error('No se pudo encontrar el producto para actualizar');
+        }
 
         toast.success('Producto actualizado');
       } else {
