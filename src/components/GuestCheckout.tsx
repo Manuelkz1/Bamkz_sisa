@@ -48,14 +48,28 @@ export function GuestCheckout() {
     };
   }, []);
 
+  // Función mejorada para detectar Chrome
+  const isChrome = () => {
+    if ('userAgentData' in navigator) {
+      return (navigator as any).userAgentData.brands.some((brand: any) => 
+        brand.brand.toLowerCase().includes('chrome')
+      );
+    }
+    return navigator.userAgent.indexOf('Chrome') > -1;
+  };
+
   // Función para manejar la redirección a Mercado Pago de manera segura
-  const redirectToMercadoPago = (url) => {
-    // Crear una página intermedia de redirección para máxima compatibilidad
-    const createRedirectPage = () => {
-      // Guardar la URL en sessionStorage para recuperarla después
-      sessionStorage.setItem('mercadopago_redirect_url', url);
-      
-      // Crear un documento HTML completo para la redirección
+  const redirectToMercadoPago = (url: string) => {
+    console.log('Iniciando redirección a:', url);
+    
+    // Desactivar cualquier interacción adicional
+    document.body.style.pointerEvents = 'none';
+    
+    // Mostrar un mensaje de redirección
+    toast.success('Redirigiendo a Mercado Pago...');
+    
+    try {
+      // Crear una página intermedia de redirección para máxima compatibilidad
       const html = `
         <!DOCTYPE html>
         <html>
@@ -65,7 +79,7 @@ export function GuestCheckout() {
           <title>Redirigiendo a Mercado Pago</title>
           <style>
             body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              font-family: -apple-system, system-ui, sans-serif;
               background-color: #f5f5f5;
               display: flex;
               justify-content: center;
@@ -123,58 +137,15 @@ export function GuestCheckout() {
             <div class="loader"></div>
             <h1>Redirigiendo a Mercado Pago</h1>
             <p>Estás siendo redirigido a la plataforma de pago. Si no eres redirigido automáticamente en unos segundos, haz clic en el botón de abajo.</p>
-            <button id="redirectButton" class="redirect-button">Ir a Mercado Pago</button>
+            <button id="redirectButton" class="redirect-button" onclick="window.location.href='${url}'">
+              Ir a Mercado Pago
+            </button>
           </div>
           
           <script>
-            // Recuperar la URL de redirección
-            const redirectUrl = sessionStorage.getItem('mercadopago_redirect_url');
-            
-            // Función para redirigir usando diferentes métodos
-            function redirectToMercadoPago() {
-              console.log('Redirigiendo a:', redirectUrl);
-              
-              // Método 1: Redirección directa
-              window.location.href = redirectUrl;
-              
-              // Método 2: Fallback con setTimeout
-              setTimeout(function() {
-                if (window.location.href.indexOf('mercadopago') === -1) {
-                  console.log('Activando fallback 1');
-                  window.location.replace(redirectUrl);
-                }
-              }, 500);
-              
-              // Método 3: Fallback con formulario
-              setTimeout(function() {
-                if (window.location.href.indexOf('mercadopago') === -1) {
-                  console.log('Activando fallback 2');
-                  const form = document.createElement('form');
-                  form.method = 'GET';
-                  form.action = redirectUrl;
-                  form.target = '_self';
-                  document.body.appendChild(form);
-                  form.submit();
-                }
-              }, 1000);
-              
-              // Método 4: Último recurso
-              setTimeout(function() {
-                if (window.location.href.indexOf('mercadopago') === -1) {
-                  console.log('Activando fallback 3');
-                  window.open(redirectUrl, '_self');
-                }
-              }, 1500);
-            }
-            
-            // Redirigir automáticamente después de un breve retraso
-            setTimeout(redirectToMercadoPago, 1000);
-            
-            // Configurar el botón de redirección manual
-            document.getElementById('redirectButton').addEventListener('click', function(e) {
-              e.preventDefault();
-              redirectToMercadoPago();
-            });
+            setTimeout(() => {
+              window.location.href = '${url}';
+            }, 1500);
           </script>
         </body>
         </html>
@@ -182,39 +153,29 @@ export function GuestCheckout() {
       
       // Crear un blob con el HTML
       const blob = new Blob([html], { type: 'text/html' });
-      
-      // Crear una URL para el blob
-      return URL.createObjectURL(blob);
-    };
-    
-    // Desactivar cualquier interacción adicional
-    document.body.style.pointerEvents = 'none';
-    
-    // Mostrar un mensaje de redirección
-    toast.success('Redirigiendo a Mercado Pago...');
-    
-    console.log('Preparando redirección a:', url);
-    
-    try {
-      // Crear la página de redirección y navegar a ella
-      const redirectPageUrl = createRedirectPage();
-      console.log('Página de redirección creada:', redirectPageUrl);
+      const redirectPageUrl = URL.createObjectURL(blob);
       
       // Navegar a la página de redirección
       window.location.href = redirectPageUrl;
 
       // Método específico para Chrome
-      if (navigator.userAgent.indexOf('Chrome') > -1) {
+      if (isChrome()) {
+        console.log('Detectado Chrome, aplicando método específico de redirección');
         setTimeout(() => {
-          const link = document.createElement('a');
-          link.href = url;
-          link.target = '_self';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            document.body.removeChild(link);
-          }, 100);
+          if (document.body) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_self';
+            link.rel = 'noopener noreferrer';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              document.body.removeChild(link);
+            }, 100);
+          } else {
+            console.warn('document.body no disponible para redirección Chrome');
+            window.location.href = url;
+          }
         }, 100);
       }
     } catch (e) {
@@ -226,7 +187,7 @@ export function GuestCheckout() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Evitar múltiples envíos
