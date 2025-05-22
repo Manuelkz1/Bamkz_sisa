@@ -125,20 +125,41 @@ export default function ProductManager() {
       };
 
       if (editingProduct?.id) {
-        // Update existing product
-        const { data, error: updateError } = await supabase
+        // First verify the product exists and is accessible
+        const { data: existingProduct, error: checkError } = await supabase
           .from('products')
-          .update(productData)
+          .select('id')
           .eq('id', editingProduct.id)
-          .select()
           .single();
 
+        if (checkError) {
+          if (checkError.code === 'PGRST116') {
+            throw new Error('El producto no existe o no tienes permiso para editarlo');
+          }
+          throw checkError;
+        }
+
+        // Update existing product
+        const { error: updateError } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', editingProduct.id);
+
         if (updateError) throw updateError;
+
+        // Fetch the updated product
+        const { data: updatedProduct, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', editingProduct.id)
+          .single();
+
+        if (fetchError) throw fetchError;
 
         // Update local state
         setProducts(prevProducts => 
           prevProducts.map(p => 
-            p.id === editingProduct.id ? { ...p, ...data } : p
+            p.id === editingProduct.id ? updatedProduct : p
           )
         );
 
