@@ -14,7 +14,7 @@ export interface Promotion {
   updated_at?: string;
   buy_quantity: number;
   get_quantity: number;
-  total_price?: number; // New field for discount type
+  total_price?: number;
 }
 
 interface PromotionStore {
@@ -22,12 +22,10 @@ interface PromotionStore {
   loading: boolean;
   error: string | null;
   
-  // Getters
   getPromotions: () => Promotion[];
   getActivePromotions: () => Promotion[];
   getPromotionById: (id: string) => Promotion | undefined;
   
-  // Actions
   fetchPromotions: () => Promise<void>;
   createPromotion: (promotion: Promotion) => Promise<{ success: boolean; data?: Promotion; error?: string }>;
   updatePromotion: (id: string, promotion: Partial<Promotion>) => Promise<{ success: boolean; data?: Promotion; error?: string }>;
@@ -87,19 +85,20 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      // Create the promotion record
+      // Create the promotion record without product_ids
+      const { name, description, type, active, start_date, end_date, buy_quantity, get_quantity, total_price } = promotion;
       const { data: newPromotion, error: promotionError } = await supabase
         .from('promotions')
         .insert([{
-          name: promotion.name,
-          description: promotion.description,
-          type: promotion.type,
-          active: promotion.active,
-          start_date: promotion.start_date || null,
-          end_date: promotion.end_date || null,
-          buy_quantity: promotion.buy_quantity,
-          get_quantity: promotion.get_quantity,
-          total_price: promotion.total_price,
+          name,
+          description,
+          type,
+          active,
+          start_date: start_date || null,
+          end_date: end_date || null,
+          buy_quantity,
+          get_quantity,
+          total_price,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }])
@@ -138,10 +137,12 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      // First, update the promotion details without product_ids
+      const { product_ids, ...promotionData } = promotion;
       const { data: updatedPromotion, error: updateError } = await supabase
         .from('promotions')
         .update({
-          ...promotion,
+          ...promotionData,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -150,28 +151,32 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
       
       if (updateError) throw updateError;
       
-      if (promotion.product_ids !== undefined) {
+      // If product_ids is provided, update the relationships
+      if (product_ids !== undefined) {
         // Delete existing product links
-        await supabase
+        const { error: deleteError } = await supabase
           .from('promotion_products')
           .delete()
           .eq('promotion_id', id);
         
-        // Create new product links
-        if (promotion.product_ids.length > 0) {
-          const promotionProducts = promotion.product_ids.map(productId => ({
+        if (deleteError) throw deleteError;
+        
+        // Create new product links if there are any product_ids
+        if (product_ids.length > 0) {
+          const promotionProducts = product_ids.map(productId => ({
             promotion_id: id,
             product_id: productId
           }));
           
-          const { error: linkError } = await supabase
+          const { error: insertError } = await supabase
             .from('promotion_products')
             .insert(promotionProducts);
           
-          if (linkError) throw linkError;
+          if (insertError) throw insertError;
         }
       }
       
+      // Refresh promotions to get updated data
       await get().fetchPromotions();
       
       set({ loading: false });
@@ -187,6 +192,7 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
+      // Delete promotion products first (foreign key constraint will handle this automatically)
       const { error } = await supabase
         .from('promotions')
         .delete()
