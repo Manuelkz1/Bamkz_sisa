@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, ShoppingCart, FileText, Share2, Tag } from 'lucide-react';
-import type { Product, Promotion } from '../types';
+import { ArrowLeft, FileText, Share2, Tag, Clock } from 'lucide-react';
+import type { Product } from '../types';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 
@@ -17,7 +17,6 @@ export default function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
-  const [activePromotion, setActivePromotion] = useState<Promotion | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
 
   useEffect(() => {
@@ -56,18 +55,18 @@ export default function ProductDetail() {
         .from('promotion_products')
         .select(`
           promotion:promotions(
-            id, name, type, buy_quantity, get_quantity, total_price, is_active, 
+            id, name, type, buy_quantity, get_quantity, total_price, active, 
             start_date, end_date, created_at, updated_at
           )
         `)
         .eq('product_id', id)
-        .filter('promotion.is_active', 'eq', true)
+        .filter('promotion.active', 'eq', true)
         .filter('promotion.start_date', 'lte', new Date().toISOString())
         .filter('promotion.end_date', 'gte', new Date().toISOString())
         .maybeSingle();
 
-      if (!promotionError && promotionData && promotionData.promotion) {
-        setActivePromotion(promotionData.promotion);
+      if (!promotionError && promotionData?.promotion) {
+        setProduct(prev => prev ? { ...prev, promotion: promotionData.promotion } : null);
       }
 
       const { data: related, error: relatedError } = await supabase
@@ -99,7 +98,8 @@ export default function ProductDetail() {
     }
   };
 
-  const handleAddToCart = (qty: number = 1) => {
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!product) return;
     
     if (product.available_colors?.length && !selectedColor) {
@@ -107,11 +107,40 @@ export default function ProductDetail() {
       return;
     }
 
-    cartStore.addItem(product, qty, selectedColor);
-    toast.success(`${qty} ${qty > 1 ? 'unidades' : 'unidad'} agregada al carrito`);
+    // Add promotion data to product if available
+    const productWithPromotion = product.promotion 
+      ? { ...product, promotion: product.promotion } 
+      : product;
+
+    cartStore.addItem(productWithPromotion, quantity, selectedColor);
+
+    toast.success(
+      <div className="flex items-center">
+        <div>
+          <p className="font-medium">¡Producto agregado al carrito!</p>
+          <p className="text-sm">
+            {quantity} {quantity > 1 ? 'unidades' : 'unidad'} de {product.name}
+            {selectedColor && ` (${selectedColor})`}
+          </p>
+        </div>
+      </div>,
+      {
+        duration: 3000,
+        position: 'top-center',
+        style: {
+          background: '#4F46E5',
+          color: '#ffffff',
+          padding: '1rem',
+          borderRadius: '0.5rem',
+        },
+      }
+    );
+
+    cartStore.toggleCart();
   };
 
-  const handleBuyNow = (qty: number = 1) => {
+  const handleBuyNow = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!product) return;
 
     if (product.available_colors?.length && !selectedColor) {
@@ -119,30 +148,35 @@ export default function ProductDetail() {
       return;
     }
 
+    // Add promotion data to product if available
+    const productWithPromotion = product.promotion 
+      ? { ...product, promotion: product.promotion } 
+      : product;
+
     cartStore.clearCart();
-    cartStore.addItem(product, qty, selectedColor);
+    cartStore.addItem(productWithPromotion, quantity, selectedColor);
     navigate('/checkout');
   };
 
   const getDiscountedPrice = () => {
-    if (!product || !activePromotion) return null;
+    if (!product || !product.promotion) return null;
     
-    if (activePromotion.total_price) {
-      return activePromotion.total_price;
+    if (product.promotion.total_price) {
+      return product.promotion.total_price;
     }
     
-    if (activePromotion.type === 'discount') {
-      const discountPercent = activePromotion.discount_percent || 20;
+    if (product.promotion.type === 'discount') {
+      const discountPercent = product.promotion.discount_percent || 20;
       const discountMultiplier = (100 - discountPercent) / 100;
       return (product.price * discountMultiplier).toFixed(2);
     }
     
-    if (['2x1', '3x1', '3x2'].includes(activePromotion.type)) {
-      if (quantity >= activePromotion.buy_quantity) {
-        const fullPriceSets = Math.floor(quantity / activePromotion.buy_quantity);
-        const remainder = quantity % activePromotion.buy_quantity;
+    if (['2x1', '3x1', '3x2'].includes(product.promotion.type)) {
+      if (quantity >= product.promotion.buy_quantity) {
+        const fullPriceSets = Math.floor(quantity / product.promotion.buy_quantity);
+        const remainder = quantity % product.promotion.buy_quantity;
         
-        const paidItems = (fullPriceSets * activePromotion.get_quantity) + remainder;
+        const paidItems = (fullPriceSets * product.promotion.get_quantity) + remainder;
         
         return (paidItems * product.price).toFixed(2);
       }
@@ -244,9 +278,9 @@ export default function ProductDetail() {
             <div className="mt-3">
               <h2 className="sr-only">Información del producto</h2>
               <div className="flex items-center">
-                {activePromotion ? (
+                {product.promotion ? (
                   <>
-                    {activePromotion.type === 'discount' ? (
+                    {product.promotion.type === 'discount' ? (
                       <div className="flex flex-col">
                         <div className="flex items-center">
                           <p className="text-2xl text-gray-500 line-through mr-2">${getRegularPrice()}</p>
@@ -256,12 +290,12 @@ export default function ProductDetail() {
                         </div>
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
                           <Tag className="h-4 w-4 mr-1" />
-                          {activePromotion.discount_percent || 20}% de descuento
+                          {product.promotion.discount_percent || 20}% de descuento
                         </div>
                       </div>
                     ) : (
                       <div className="flex flex-col">
-                        {quantity >= activePromotion.buy_quantity ? (
+                        {quantity >= product.promotion.buy_quantity ? (
                           <>
                             <div className="flex items-center">
                               <p className="text-2xl text-gray-500 line-through mr-2">${getRegularPrice()}</p>
@@ -271,9 +305,9 @@ export default function ProductDetail() {
                             </div>
                             <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
                               <Tag className="h-4 w-4 mr-1" />
-                              {activePromotion.type === '2x1' && 'Compra 2, paga 1'}
-                              {activePromotion.type === '3x1' && 'Compra 3, paga 1'}
-                              {activePromotion.type === '3x2' && 'Compra 3, paga 2'}
+                              {product.promotion.type === '2x1' && 'Compra 2, paga 1'}
+                              {product.promotion.type === '3x1' && 'Compra 3, paga 1'}
+                              {product.promotion.type === '3x2' && 'Compra 3, paga 2'}
                             </div>
                           </>
                         ) : (
@@ -281,9 +315,9 @@ export default function ProductDetail() {
                             <p className="text-3xl text-gray-900">${getRegularPrice()}</p>
                             <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
                               <Tag className="h-4 w-4 mr-1" />
-                              {activePromotion.type === '2x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
-                              {activePromotion.type === '3x1' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
-                              {activePromotion.type === '3x2' && `¡Compra ${activePromotion.buy_quantity} y paga ${activePromotion.get_quantity}!`}
+                              {product.promotion.type === '2x1' && `¡Compra ${product.promotion.buy_quantity} y paga ${product.promotion.get_quantity}!`}
+                              {product.promotion.type === '3x1' && `¡Compra ${product.promotion.buy_quantity} y paga ${product.promotion.get_quantity}!`}
+                              {product.promotion.type === '3x2' && `¡Compra ${product.promotion.buy_quantity} y paga ${product.promotion.get_quantity}!`}
                             </div>
                           </>
                         )}
@@ -347,6 +381,15 @@ export default function ProductDetail() {
               </div>
             )}
 
+            {product.show_delivery_time && product.delivery_time && (
+              <div className="mt-6">
+                <div className="flex items-center text-sm text-gray-700">
+                  <Clock className="h-5 w-5 text-gray-400 mr-2" />
+                  <span>Tiempo estimado de entrega: {product.delivery_time}</span>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6">
               <div className="flex items-center">
                 <div className="text-sm text-gray-700">
@@ -390,16 +433,15 @@ export default function ProductDetail() {
               
               <div className="flex sm:flex-row gap-4">
                 <button
-                  onClick={() => handleAddToCart(quantity)}
+                  onClick={handleAddToCart}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-600 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ShoppingCart className="h-5 w-5 mr-2" />
                   Agregar al carrito
                 </button>
 
                 <button
-                  onClick={() => handleBuyNow(quantity)}
+                  onClick={handleBuyNow}
                   disabled={product.stock === 0}
                   className="flex-1 bg-indigo-100 border border-transparent rounded-md py-3 px-8 flex items-center justify-center text-base font-medium text-indigo-700 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-50 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

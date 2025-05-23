@@ -1,4 +1,3 @@
-// promotionStore.ts
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
@@ -6,15 +5,16 @@ export interface Promotion {
   id?: string;
   name: string;
   description?: string;
-  type: 'percentage' | 'fixed' | 'discount' | '2x1' | '3x2' | '3x1';
-  value?: number;
+  type: '2x1' | '3x2' | '3x1' | 'discount';
   active: boolean;
-  start_date?: string;
-  end_date?: string;
+  start_date?: string | null;
+  end_date?: string | null;
   product_ids?: string[];
-  category_ids?: string[];
   created_at?: string;
   updated_at?: string;
+  buy_quantity: number;
+  get_quantity: number;
+  total_price?: number; // New field for discount type
 }
 
 interface PromotionStore {
@@ -40,7 +40,6 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
   loading: false,
   error: null,
   
-  // Getters
   getPromotions: () => get().promotions,
   
   getActivePromotions: () => {
@@ -56,20 +55,29 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     return get().promotions.find(promo => promo.id === id);
   },
   
-  // Actions
   fetchPromotions: async () => {
     set({ loading: true, error: null });
     
     try {
-      const { data, error } = await supabase
+      const { data: promotionsData, error: promotionsError } = await supabase
         .from('promotions')
-        .select('*')
+        .select(`
+          *,
+          promotion_products (
+            product_id
+          )
+        `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (promotionsError) throw promotionsError;
       
-      set({ promotions: data || [], loading: false });
-    } catch (error) {
+      const formattedPromotions = promotionsData?.map(promotion => ({
+        ...promotion,
+        product_ids: promotion.promotion_products?.map(pp => pp.product_id) || []
+      })) || [];
+
+      set({ promotions: formattedPromotions, loading: false });
+    } catch (error: any) {
       console.error('Error fetching promotions:', error);
       set({ error: error.message, loading: false });
     }
@@ -79,41 +87,47 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      // Asegurarse de que los campos requeridos estén presentes
-      if (!promotion.name || !promotion.type) {
-        throw new Error('Nombre y tipo de promoción son obligatorios');
-      }
-      
-      // Validar el valor según el tipo de promoción
-      if (['percentage', 'fixed', 'discount'].includes(promotion.type) && 
-          (promotion.value === undefined || promotion.value <= 0)) {
-        throw new Error('El valor de la promoción debe ser mayor que 0');
-      }
-      
-      // Añadir timestamps
-      const now = new Date().toISOString();
-      const newPromotion = {
-        ...promotion,
-        created_at: now,
-        updated_at: now
-      };
-      
-      const { data, error } = await supabase
+      // Create the promotion record
+      const { data: newPromotion, error: promotionError } = await supabase
         .from('promotions')
-        .insert([newPromotion])
+        .insert([{
+          name: promotion.name,
+          description: promotion.description,
+          type: promotion.type,
+          active: promotion.active,
+          start_date: promotion.start_date || null,
+          end_date: promotion.end_date || null,
+          buy_quantity: promotion.buy_quantity,
+          get_quantity: promotion.get_quantity,
+          total_price: promotion.total_price,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
         .select()
         .single();
       
-      if (error) throw error;
+      if (promotionError) throw promotionError;
       
-      // Actualizar el estado con la nueva promoción
-      set(state => ({
-        promotions: [data, ...state.promotions],
-        loading: false
-      }));
+      // If there are product IDs, create the promotion-product relationships
+      if (promotion.product_ids?.length && newPromotion) {
+        const promotionProducts = promotion.product_ids.map(productId => ({
+          promotion_id: newPromotion.id,
+          product_id: productId
+        }));
+        
+        const { error: linkError } = await supabase
+          .from('promotion_products')
+          .insert(promotionProducts);
+        
+        if (linkError) throw linkError;
+      }
       
-      return { success: true, data };
-    } catch (error) {
+      // Refresh the promotions list
+      await get().fetchPromotions();
+      
+      set({ loading: false });
+      return { success: true, data: newPromotion };
+    } catch (error: any) {
       console.error('Error creating promotion:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };
@@ -124,29 +138,45 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      // Añadir timestamp de actualización
-      const updatedPromotion = {
-        ...promotion,
-        updated_at: new Date().toISOString()
-      };
-      
-      const { data, error } = await supabase
+      const { data: updatedPromotion, error: updateError } = await supabase
         .from('promotions')
-        .update(updatedPromotion)
+        .update({
+          ...promotion,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id)
         .select()
         .single();
       
-      if (error) throw error;
+      if (updateError) throw updateError;
       
-      // Actualizar el estado con la promoción modificada
-      set(state => ({
-        promotions: state.promotions.map(p => p.id === id ? data : p),
-        loading: false
-      }));
+      if (promotion.product_ids !== undefined) {
+        // Delete existing product links
+        await supabase
+          .from('promotion_products')
+          .delete()
+          .eq('promotion_id', id);
+        
+        // Create new product links
+        if (promotion.product_ids.length > 0) {
+          const promotionProducts = promotion.product_ids.map(productId => ({
+            promotion_id: id,
+            product_id: productId
+          }));
+          
+          const { error: linkError } = await supabase
+            .from('promotion_products')
+            .insert(promotionProducts);
+          
+          if (linkError) throw linkError;
+        }
+      }
       
-      return { success: true, data };
-    } catch (error) {
+      await get().fetchPromotions();
+      
+      set({ loading: false });
+      return { success: true, data: updatedPromotion };
+    } catch (error: any) {
       console.error('Error updating promotion:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };
@@ -164,14 +194,13 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
       
       if (error) throw error;
       
-      // Actualizar el estado eliminando la promoción
       set(state => ({
         promotions: state.promotions.filter(p => p.id !== id),
         loading: false
       }));
       
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting promotion:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };
@@ -182,11 +211,9 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
     set({ loading: true, error: null });
     
     try {
-      // Obtener la promoción actual
       const promotion = get().promotions.find(p => p.id === id);
-      if (!promotion) throw new Error('Promoción no encontrada');
+      if (!promotion) throw new Error('Promotion not found');
       
-      // Cambiar el estado activo
       const { data, error } = await supabase
         .from('promotions')
         .update({ 
@@ -199,14 +226,13 @@ export const usePromotionStore = create<PromotionStore>((set, get) => ({
       
       if (error) throw error;
       
-      // Actualizar el estado con la promoción modificada
       set(state => ({
         promotions: state.promotions.map(p => p.id === id ? data : p),
         loading: false
       }));
       
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling promotion status:', error);
       set({ error: error.message, loading: false });
       return { success: false, error: error.message };

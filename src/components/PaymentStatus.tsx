@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowLeft } from 'lucide-react';
-import { supabase } from '../lib/supabase'; // Import supabase client
-import { useCartStore } from '../stores/cartStore'; // Import cart store for clearing cart
+import { supabase } from '../lib/supabase';
+import { useCartStore } from '../stores/cartStore';
 
 export function PaymentStatus() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const status = searchParams.get('status');
-  const orderId = searchParams.get('order_id'); // Get order_id for fetching details
+  const orderId = searchParams.get('order_id');
   const clearCart = useCartStore((state) => state.clearCart);
 
   useEffect(() => {
@@ -71,9 +71,9 @@ export function PaymentStatus() {
             }
           }
           
-          // Clear cart and form data (form data should be cleared by GuestCheckout on success path or here if needed)
+          // Clear cart and form data
           clearCart();
-          sessionStorage.removeItem("checkout-form-bolt-v3"); // Clear form data on successful payment
+          sessionStorage.removeItem("checkout-form-bolt-v3");
           console.log('[PaymentStatus] Cart and form data cleared for successful payment.');
 
         } catch (e: any) {
@@ -139,7 +139,7 @@ export function PaymentStatus() {
             },
           ],
         };
-      case 'pending_cod': // Status for Cash on Delivery from GuestCheckout
+      case 'pending_cod':
       case 'pending':
         return {
           icon: <Clock className="h-16 w-16 text-yellow-500" />,
@@ -216,4 +216,3 @@ export function PaymentStatus() {
     </div>
   );
 }
-
