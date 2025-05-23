@@ -156,36 +156,52 @@ export default function ProductManager() {
       console.log('Guardando producto con datos:', JSON.stringify(productData, null, 2));
 
       if (editingProduct) {
-        // Primero verificamos si el producto todavía existe
-        const { data: existingProduct, error: checkError } = await supabase
+        // Verificamos primero si el producto existe
+        const { data: existingProduct, error: fetchError } = await supabase
           .from('products')
           .select('id')
           .eq('id', editingProduct.id)
-          .maybeSingle();
+          .single();
         
-        if (checkError) {
-          console.error('Error al verificar si el producto existe:', checkError);
+        if (fetchError) {
+          console.error('Error al verificar si el producto existe:', fetchError);
+          if (fetchError.code === 'PGRST116') {
+            throw new Error('El producto ya no existe');
+          }
           throw new Error('Error al verificar si el producto existe');
         }
         
         if (!existingProduct) {
-          console.error('El producto ya no existe en la base de datos');
           throw new Error('El producto ya no existe');
         }
         
         // Si el producto existe, procedemos con la actualización
-        const { error: updateError } = await supabase
+        const { data: updatedProduct, error: updateError } = await supabase
           .from('products')
           .update({
             ...productData,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingProduct.id);
+          .eq('id', editingProduct.id)
+          .select();
 
         if (updateError) {
           console.error('Error al actualizar el producto:', updateError);
           throw updateError;
         }
+        
+        if (!updatedProduct || updatedProduct.length === 0) {
+          throw new Error('No se pudo actualizar el producto');
+        }
+        
+        // Actualizamos el producto en el estado local para reflejar los cambios inmediatamente
+        setProducts(prevProducts => 
+          prevProducts.map(p => 
+            p.id === editingProduct.id 
+              ? { ...p, ...productData, updated_at: new Date().toISOString() } 
+              : p
+          )
+        );
         
         toast.success('Producto actualizado exitosamente');
       } else {
@@ -201,6 +217,11 @@ export default function ProductManager() {
         if (error) {
           console.error('Error detallado de Supabase:', error);
           throw error;
+        }
+        
+        // Añadimos el nuevo producto al estado local para reflejar los cambios inmediatamente
+        if (data && data.length > 0) {
+          setProducts(prevProducts => [data[0], ...prevProducts]);
         }
         
         toast.success('Producto creado exitosamente');
@@ -223,6 +244,8 @@ export default function ProductManager() {
           payment_url: ''
         }
       });
+      
+      // Recargamos los productos para asegurar que tenemos los datos más actualizados
       loadProducts();
     } catch (error: any) {
       console.error('Error saving product:', error);
@@ -247,8 +270,11 @@ export default function ProductManager() {
         .eq('id', productId);
 
       if (error) throw error;
+      
+      // Actualizamos el estado local para reflejar los cambios inmediatamente
+      setProducts(prevProducts => prevProducts.filter(p => p.id !== productId));
+      
       toast.success('Producto eliminado exitosamente');
-      loadProducts();
     } catch (error: any) {
       console.error('Error deleting product:', error);
       toast.error('Error al eliminar el producto');
@@ -580,7 +606,7 @@ export default function ProductManager() {
                     placeholder="Describe el producto..."
                     rows={4}
                     required
-                  />
+                  ></textarea>
                 </div>
 
                 <div>
@@ -609,9 +635,9 @@ export default function ProductManager() {
                     <button
                       type="button"
                       onClick={handleImageUrlAdd}
-                      className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                      className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
                     >
-                      <Plus className="w-4 h-4 mr-1" />
+                      <Plus className="w-4 h-4 mr-2" />
                       Agregar imagen
                     </button>
                   </div>
@@ -643,9 +669,9 @@ export default function ProductManager() {
                     <button
                       type="button"
                       onClick={handleColorAdd}
-                      className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                      className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
                     >
-                      <Plus className="w-4 h-4 mr-1" />
+                      <Plus className="w-4 h-4 mr-2" />
                       Agregar color
                     </button>
                   </div>
@@ -658,8 +684,8 @@ export default function ProductManager() {
                     </label>
                     <div className="space-y-4">
                       {productForm.available_colors.map((color, colorIndex) => (
-                        <div key={colorIndex} className="border border-gray-200 rounded-md p-3">
-                          <h4 className="font-medium text-gray-800 mb-2">{color}</h4>
+                        <div key={colorIndex} className="border border-gray-200 rounded-md p-4">
+                          <h4 className="font-medium mb-2">{color}</h4>
                           <div className="space-y-2">
                             {productForm.color_images
                               .filter(ci => ci.color === color)
@@ -687,9 +713,9 @@ export default function ProductManager() {
                             <button
                               type="button"
                               onClick={() => handleColorImageAdd(color)}
-                              className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
                             >
-                              <Plus className="w-4 h-4 mr-1" />
+                              <Plus className="w-4 h-4 mr-2" />
                               Agregar imagen para {color}
                             </button>
                           </div>
@@ -700,7 +726,7 @@ export default function ProductManager() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Métodos de pago permitidos
                   </label>
                   <div className="space-y-2">
@@ -712,48 +738,45 @@ export default function ProductManager() {
                         onChange={(e) => handlePaymentMethodChange('cash_on_delivery', e.target.checked)}
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                       />
-                      <label htmlFor="cash_on_delivery" className="ml-2 block text-sm text-gray-700">
+                      <label htmlFor="cash_on_delivery" className="ml-2 block text-sm text-gray-900">
                         Pago contra entrega
                       </label>
                     </div>
                     <div className="flex items-center">
                       <input
                         type="checkbox"
-                        id="card_payment"
+                        id="card"
                         checked={productForm.allowed_payment_methods.card}
                         onChange={(e) => handlePaymentMethodChange('card', e.target.checked)}
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                       />
-                      <label htmlFor="card_payment" className="ml-2 block text-sm text-gray-700">
+                      <label htmlFor="card" className="ml-2 block text-sm text-gray-900">
                         Pago con tarjeta
                       </label>
                     </div>
-                    
                     {productForm.allowed_payment_methods.card && (
-                      <div className="mt-2 pl-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <div className="mt-2">
+                        <label htmlFor="payment_url" className="block text-sm text-gray-700 mb-1">
                           URL de pago (opcional)
                         </label>
                         <input
                           type="text"
+                          id="payment_url"
                           value={productForm.allowed_payment_methods.payment_url}
                           onChange={(e) => handlePaymentUrlChange(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="https://ejemplo.com/pago"
+                          placeholder="URL para el pago con tarjeta"
                         />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Si se proporciona, los clientes serán redirigidos a esta URL para completar el pago.
-                        </p>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-4 border-t">
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                   <button
                     type="button"
                     onClick={() => setShowProductModal(false)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
                   >
                     Cancelar
                   </button>
