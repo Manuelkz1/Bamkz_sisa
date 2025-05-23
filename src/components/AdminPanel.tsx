@@ -363,25 +363,46 @@ export function AdminPanel() {
       console.log('Guardando producto con datos:', JSON.stringify(productData, null, 2));
 
       if (editingProduct) {
-        const { data, error } = await supabase
+        // Primero verificamos si el producto todavía existe
+        const { data: existingProduct, error: checkError } = await supabase
+          .from('products')
+          .select('id')
+          .eq('id', editingProduct.id)
+          .maybeSingle();
+        
+        if (checkError) {
+          console.error('Error al verificar si el producto existe:', checkError);
+          throw new Error('Error al verificar si el producto existe');
+        }
+        
+        if (!existingProduct) {
+          console.error('El producto ya no existe en la base de datos');
+          throw new Error('El producto ya no existe');
+        }
+        
+        // Si el producto existe, procedemos con la actualización
+        const { error: updateError } = await supabase
           .from('products')
           .update({
             ...productData,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingProduct.id)
-          .select();
+          .eq('id', editingProduct.id);
 
-        if (error) {
-          console.error('Error detallado de Supabase:', error);
-          throw error;
+        if (updateError) {
+          console.error('Error al actualizar el producto:', updateError);
+          throw updateError;
         }
         
         toast.success('Producto actualizado exitosamente');
       } else {
         const { data, error } = await supabase
           .from('products')
-          .insert([productData])
+          .insert([{
+            ...productData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }])
           .select();
 
         if (error) {
@@ -529,7 +550,7 @@ export function AdminPanel() {
   const handleColorRemove = (index: number) => {
     const colorToRemove = productForm.available_colors[index];
     
-    // Eliminar también la asociación color-imagen si existe
+    // Eliminar también las imágenes asociadas a este color
     const newColorImages = productForm.color_images.filter(ci => ci.color !== colorToRemove);
     
     setProductForm(prev => ({
@@ -538,49 +559,56 @@ export function AdminPanel() {
       color_images: newColorImages
     }));
   };
-  
+
   const handleColorImageAdd = (color: string) => {
-    // Si ya existe una asociación para este color, no hacer nada
-    if (productForm.color_images.some(ci => ci.color === color)) {
-      return;
-    }
-    
     setProductForm(prev => ({
       ...prev,
       color_images: [...prev.color_images, { color, image: '' }]
     }));
   };
-  
-  const handleColorImageChange = (color: string, image: string) => {
-    // Validar que la URL de la imagen no esté vacía
-    if (!image || image.trim() === '') {
-      toast.error(`Debe ingresar una URL de imagen válida para el color ${color}`);
-      return;
-    }
-    
+
+  const handleColorImageChange = (index: number, value: string) => {
     const newColorImages = [...productForm.color_images];
-    const index = newColorImages.findIndex(ci => ci.color === color);
-    
-    if (index >= 0) {
-      newColorImages[index].image = image.trim();
-    } else {
-      newColorImages.push({ color, image: image.trim() });
-    }
-    
+    newColorImages[index].image = value;
     setProductForm(prev => ({
       ...prev,
       color_images: newColorImages
     }));
   };
-  
-  const handleColorImageRemove = (color: string) => {
+
+  const handleColorImageRemove = (index: number) => {
     setProductForm(prev => ({
       ...prev,
-      color_images: prev.color_images.filter(ci => ci.color !== color)
+      color_images: prev.color_images.filter((_, i) => i !== index)
     }));
   };
 
-  const handleUpdateOrderStatus = async (orderId: string, status: Order['status']) => {
+  const handlePaymentMethodChange = (method: 'cash_on_delivery' | 'card', checked: boolean) => {
+    setProductForm(prev => ({
+      ...prev,
+      allowed_payment_methods: {
+        ...prev.allowed_payment_methods,
+        [method]: checked
+      }
+    }));
+  };
+
+  const handlePaymentUrlChange = (url: string) => {
+    setProductForm(prev => ({
+      ...prev,
+      allowed_payment_methods: {
+        ...prev.allowed_payment_methods,
+        payment_url: url
+      }
+    }));
+  };
+
+  const handleViewOrder = (order: Order) => {
+    setSelectedOrder(order);
+    setShowOrderDetailModal(true);
+  };
+
+  const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
       const { error } = await supabase
         .from('orders')
@@ -588,717 +616,646 @@ export function AdminPanel() {
         .eq('id', orderId);
 
       if (error) throw error;
-      toast.success('Estado del pedido actualizado');
-      loadOrders();
+      
+      toast.success(`Estado del pedido actualizado a: ${ORDER_STATUS_MAP[status as keyof typeof ORDER_STATUS_MAP]?.label || status}`);
+      
+      // Actualizar el estado local
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, status } : order
+      ));
+      
+      // Si es el pedido seleccionado, actualizar también
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, status } : null);
+      }
     } catch (error: any) {
       console.error('Error updating order status:', error);
       toast.error('Error al actualizar el estado del pedido');
     }
   };
 
-  const handleUpdateUserRole = async (userId: string, newRole: User['role']) => {
+  const handleUpdatePaymentStatus = async (orderId: string, payment_status: string) => {
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        throw new Error('No se pudo obtener la sesión del usuario');
-      }
-
-      if (!session) {
-        throw new Error('No hay sesión activa');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-users`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId, newRole })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al actualizar el rol');
-      }
-
-      toast.success('Rol actualizado exitosamente');
-      loadUsers();
-    } catch (error: any) {
-      console.error('Error updating user role:', error);
-      toast.error(error.message || 'Error al actualizar el rol');
-      
-      if (error.message.includes('Authentication failed') || error.message.includes('No hay sesión activa')) {
-        navigate('/login');
-      }
-    }
-  };
-  
-  const handleViewOrderDetails = async (order: Order) => {
-    console.log('Visualizando detalles del pedido:', order.id);
-    
-    try {
-      // Cargar datos completos del pedido para asegurar que tenemos toda la información
-      const { data: orderData, error: orderError } = await supabase
+      const { error } = await supabase
         .from('orders')
-        .select('*')
-        .eq('id', order.id)
-        .single();
-        
-      if (orderError) {
-        console.error('Error al cargar detalles del pedido:', orderError);
-        toast.error('Error al cargar detalles del pedido');
-        return;
+        .update({ payment_status })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      
+      toast.success(`Estado de pago actualizado a: ${PAYMENT_STATUS_MAP[payment_status as keyof typeof PAYMENT_STATUS_MAP]?.label || payment_status}`);
+      
+      // Actualizar el estado local
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, payment_status } : order
+      ));
+      
+      // Si es el pedido seleccionado, actualizar también
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, payment_status } : null);
       }
-      
-      // Cargar items del pedido si existen
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('*, products(*)')
-        .eq('order_id', order.id);
-        
-      if (itemsError) {
-        console.error('Error al cargar items del pedido:', itemsError);
-      }
-      
-      // Combinar datos y establecer el pedido seleccionado
-      const completeOrder = {
-        ...orderData,
-        items: orderItems || [],
-      };
-      
-      console.log('Pedido completo cargado:', completeOrder);
-      setSelectedOrder(completeOrder);
-    } catch (error) {
-      console.error('Error general al cargar detalles del pedido:', error);
-      toast.error('Error al cargar detalles del pedido');
+    } catch (error: any) {
+      console.error('Error updating payment status:', error);
+      toast.error('Error al actualizar el estado de pago');
     }
   };
 
   const toggleOrderExpand = (orderId: string) => {
-    if (expandedOrderId === orderId) {
-      setExpandedOrderId(null);
-    } else {
-      setExpandedOrderId(orderId);
-    }
+    setExpandedOrderId(prev => prev === orderId ? null : orderId);
   };
 
-  if (loading) {
+  const renderProductsTab = () => {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center mb-8">
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Productos</h2>
           <button
-            onClick={() => navigate('/')}
-            className="mr-4 text-gray-600 hover:text-gray-900"
+            onClick={() => {
+              setEditingProduct(null);
+              setProductForm({
+                name: '',
+                description: '',
+                price: '',
+                category: '',
+                stock: '',
+                images: [''],
+                available_colors: [],
+                color_images: [],
+                allowed_payment_methods: {
+                  cash_on_delivery: true,
+                  card: true,
+                  payment_url: ''
+                }
+              });
+              setShowProductModal(true);
+            }}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center"
           >
-            <ArrowLeft className="h-6 w-6" />
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo Producto
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Panel de Administración
-          </h1>
         </div>
 
-        <div className="bg-white shadow rounded-lg">
-          <div className="border-b border-gray-200">
-            <nav className="flex -mb-px">
-              <button
-                onClick={() => setActiveTab('products')}
-                className={`${
-                  activeTab === 'products'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
-              >
-                <Package className="h-5 w-5 mr-2" />
-                Productos
-              </button>
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`${
-                  activeTab === 'orders'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
-              >
-                <ShoppingBag className="h-5 w-5 mr-2" />
-                Pedidos
-              </button>
-              <button
-                onClick={() => setActiveTab('users')}
-                className={`${
-                  activeTab === 'users'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
-              >
-                <Users className="h-5 w-5 mr-2" />
-                Usuarios
-              </button>
-              <button
-                onClick={() => setActiveTab('promotions')}
-                className={`${
-                  activeTab === 'promotions'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
-              >
-                <Tag className="h-5 w-5 mr-2" />
-                Promociones
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`${
-                  activeTab === 'settings'
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } flex-1 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center justify-center`}
-              >
-                <Settings className="h-5 w-5 mr-2" />
-                Configuración
-              </button>
-            </nav>
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
           </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        ) : products.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 text-gray-500 px-4 py-8 rounded text-center">
+            No hay productos disponibles. Crea tu primer producto con el botón "Nuevo Producto".
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoría</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {products.map(product => (
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0">
+                          <img
+                            className="h-10 w-10 rounded-md object-cover"
+                            src={product.images && product.images.length > 0 ? product.images[0] : 'https://via.placeholder.com/150'}
+                            alt={product.name}
+                          />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          <div className="text-sm text-gray-500 truncate max-w-xs">{product.description}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">${product.price.toLocaleString()}</div>
+                      {product.original_price && product.original_price > product.price && (
+                        <div className="text-xs text-gray-500 line-through">${product.original_price.toLocaleString()}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`text-sm ${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                        {product.stock}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{product.category || 'Sin categoría'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditProduct(product)}
+                          className="text-indigo-600 hover:text-indigo-900 flex items-center"
+                        >
+                          <Edit className="w-4 h-4 mr-1" />
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="text-red-600 hover:text-red-900 flex items-center"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Eliminar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-          <div className="p-6">
-            {activeTab === 'products' && (
-              <div>
+        {/* Modal de producto */}
+        {showProductModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Productos
-                  </h2>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+                  </h3>
                   <button
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductForm({
-                        name: '',
-                        description: '',
-                        price: '',
-                        category: '',
-                        stock: '',
-                        images: [],
-                        available_colors: [],
-                        color_images: [],
-                        allowed_payment_methods: {
-                          cash_on_delivery: true,
-                          card: true,
-                          payment_url: ''
-                        }
-                      });
-                      setShowProductModal(true);
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    onClick={() => setShowProductModal(false)}
+                    className="text-gray-400 hover:text-gray-500"
                   >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Nuevo Producto
+                    <X className="w-6 h-6" />
                   </button>
                 </div>
 
-                {error && (
-                  <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <XCircle className="h-5 w-5 text-red-400" />
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-red-700">{error}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {products.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No hay productos disponibles.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Producto
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Precio
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Stock
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Categoría
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {products.map((product) => (
-                          <tr key={product.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-10 w-10">
-                                  <img
-                                    className="h-10 w-10 rounded-full object-cover"
-                                    src={product.images?.[0] || 'https://via.placeholder.com/150'}
-                                    alt={product.name}
-                                  />
-                                </div>
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {product.name}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                ${product.price.toFixed(2)}
-                              </div>
-                              {product.original_price && (
-                                <div className="text-xs text-gray-500 line-through">
-                                  ${product.original_price.toFixed(2)}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {product.stock}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {product.category || 'Sin categoría'}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <button
-                                onClick={() => handleEditProduct(product)}
-                                className="text-indigo-600 hover:text-indigo-900 mr-4"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                Eliminar
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'orders' && (
-              <OrderManager />
-            )}
-
-            {activeTab === 'users' && (
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  Usuarios
-                </h2>
-
-                {error && (
-                  <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <XCircle className="h-5 w-5 text-red-400" />
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm text-red-700">{error}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {users.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-gray-500">No hay usuarios registrados.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Usuario
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Email
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Rol
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Fecha de registro
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {users.map((user) => (
-                          <tr key={user.id}>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {user.user_metadata?.full_name || 'Usuario'}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {user.email}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <select
-                                value={user.role || 'customer'}
-                                onChange={(e) => handleUpdateUserRole(user.id, e.target.value as User['role'])}
-                                className="text-sm text-gray-900 border border-gray-300 rounded-md p-1"
-                              >
-                                <option value="admin">Administrador</option>
-                                <option value="fulfillment">Fulfillment</option>
-                                <option value="customer">Cliente</option>
-                              </select>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm text-gray-900">
-                                {user.created_at ? format(new Date(user.created_at), 'dd/MM/yyyy') : 'N/A'}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              {/* Acciones de usuario */}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'promotions' && (
-              <PromotionManager />
-            )}
-
-            {activeTab === 'settings' && (
-              <CompanySettings />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal de producto */}
-      {showProductModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
-              </h3>
-              <button
-                onClick={() => setShowProductModal(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleProductSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                    Nombre del producto
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    value={productForm.name}
-                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-                    Categoría
-                  </label>
-                  <input
-                    type="text"
-                    id="category"
-                    value={productForm.category}
-                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700">
-                    Precio
-                  </label>
-                  <input
-                    type="number"
-                    id="price"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    min="0"
-                    step="0.01"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="stock" className="block text-sm font-medium text-gray-700">
-                    Stock
-                  </label>
-                  <input
-                    type="number"
-                    id="stock"
-                    value={productForm.stock}
-                    onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    min="0"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                  Descripción
-                </label>
-                <textarea
-                  id="description"
-                  value={productForm.description}
-                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  rows={3}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Imágenes del producto
-                </label>
-                {productForm.images.map((url, index) => (
-                  <div key={index} className="flex items-center mb-2">
-                    <input
-                      type="text"
-                      value={url}
-                      onChange={(e) => handleImageUrlChange(index, e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      placeholder="URL de la imagen"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleImageUrlRemove(index)}
-                      className="ml-2 text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleImageUrlAdd}
-                  className="mt-1 inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Añadir imagen
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Colores disponibles
-                </label>
-                {productForm.available_colors.map((color, index) => (
-                  <div key={index} className="flex items-center mb-2">
-                    <input
-                      type="text"
-                      value={color}
-                      onChange={(e) => handleColorChange(index, e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                      placeholder="Nombre del color (ej: Rojo, Azul, etc.)"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleColorRemove(index)}
-                      className="ml-2 text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleColorAdd}
-                  className="mt-1 inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Añadir color
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Imágenes por color
-                </label>
-                {productForm.available_colors.length > 0 ? (
-                  <div className="space-y-4">
-                    {productForm.available_colors.map((color) => {
-                      const colorImage = productForm.color_images.find(ci => ci.color === color);
-                      return (
-                        <div key={color} className="border border-gray-200 rounded-md p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">{color}</span>
-                            {colorImage ? (
-                              <button
-                                type="button"
-                                onClick={() => handleColorImageRemove(color)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleColorImageAdd(color)}
-                                className="text-indigo-600 hover:text-indigo-800"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-                          {colorImage && (
-                            <div className="flex items-center">
-                              <input
-                                type="text"
-                                value={colorImage.image}
-                                onChange={(e) => handleColorImageChange(color, e.target.value)}
-                                className="flex-1 border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="URL de la imagen para este color"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    Primero añade colores disponibles para poder asignar imágenes por color.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  Métodos de pago permitidos
-                </h4>
-                <div className="space-y-2">
-                  <div className="flex items-center">
-                    <input
-                      id="cash_on_delivery"
-                      type="checkbox"
-                      checked={productForm.allowed_payment_methods.cash_on_delivery}
-                      onChange={(e) => setProductForm({
-                        ...productForm,
-                        allowed_payment_methods: {
-                          ...productForm.allowed_payment_methods,
-                          cash_on_delivery: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="cash_on_delivery" className="ml-2 block text-sm text-gray-900">
-                      Pago contra entrega
-                    </label>
-                  </div>
-                  <div className="flex items-center">
-                    <input
-                      id="card"
-                      type="checkbox"
-                      checked={productForm.allowed_payment_methods.card}
-                      onChange={(e) => setProductForm({
-                        ...productForm,
-                        allowed_payment_methods: {
-                          ...productForm.allowed_payment_methods,
-                          card: e.target.checked
-                        }
-                      })}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="card" className="ml-2 block text-sm text-gray-900">
-                      Tarjeta de crédito/débito
-                    </label>
-                  </div>
-                  {productForm.allowed_payment_methods.card && (
-                    <div className="ml-6 mt-2">
-                      <label htmlFor="payment_url" className="block text-sm font-medium text-gray-700">
-                        URL de pago (opcional)
+                <form onSubmit={handleProductSubmit} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nombre del producto *
                       </label>
                       <input
                         type="text"
-                        id="payment_url"
-                        value={productForm.allowed_payment_methods.payment_url}
-                        onChange={(e) => setProductForm({
-                          ...productForm,
-                          allowed_payment_methods: {
-                            ...productForm.allowed_payment_methods,
-                            payment_url: e.target.value
-                          }
-                        })}
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        placeholder="https://..."
+                        value={productForm.name}
+                        onChange={(e) => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ej: Camiseta de algodón"
+                        required
                       />
                     </div>
-                  )}
-                </div>
-              </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowProductModal(false)}
-                  className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <Save className="h-5 w-5 mr-2" />
-                  {editingProduct ? 'Actualizar' : 'Guardar'}
-                </button>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Categoría
+                      </label>
+                      <input
+                        type="text"
+                        value={productForm.category}
+                        onChange={(e) => setProductForm(prev => ({ ...prev, category: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ej: Ropa, Electrónica, etc."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Precio *
+                      </label>
+                      <input
+                        type="number"
+                        value={productForm.price}
+                        onChange={(e) => setProductForm(prev => ({ ...prev, price: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ej: 29.99"
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Stock *
+                      </label>
+                      <input
+                        type="number"
+                        value={productForm.stock}
+                        onChange={(e) => setProductForm(prev => ({ ...prev, stock: e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ej: 100"
+                        min="0"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Descripción *
+                    </label>
+                    <textarea
+                      value={productForm.description}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Describe el producto..."
+                      rows={4}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Imágenes del producto *
+                    </label>
+                    <div className="space-y-2">
+                      {productForm.images.map((url, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={url}
+                            onChange={(e) => handleImageUrlChange(index, e.target.value)}
+                            className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="URL de la imagen"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleImageUrlRemove(index)}
+                            className="p-2 text-red-600 hover:text-red-800"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleImageUrlAdd}
+                        className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Agregar imagen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Colores disponibles
+                    </label>
+                    <div className="space-y-2">
+                      {productForm.available_colors.map((color, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={color}
+                            onChange={(e) => handleColorChange(index, e.target.value)}
+                            className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Nombre del color (ej: Rojo, Azul, etc.)"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleColorRemove(index)}
+                            className="p-2 text-red-600 hover:text-red-800"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleColorAdd}
+                        className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Agregar color
+                      </button>
+                    </div>
+                  </div>
+
+                  {productForm.available_colors.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Imágenes por color
+                      </label>
+                      <div className="space-y-4">
+                        {productForm.available_colors.map((color, colorIndex) => (
+                          <div key={colorIndex} className="border border-gray-200 rounded-md p-3">
+                            <h4 className="font-medium text-gray-800 mb-2">{color}</h4>
+                            <div className="space-y-2">
+                              {productForm.color_images
+                                .filter(ci => ci.color === color)
+                                .map((ci, imageIndex) => {
+                                  const index = productForm.color_images.findIndex(item => item === ci);
+                                  return (
+                                    <div key={index} className="flex items-center space-x-2">
+                                      <input
+                                        type="text"
+                                        value={ci.image}
+                                        onChange={(e) => handleColorImageChange(index, e.target.value)}
+                                        className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                        placeholder={`URL de imagen para ${color}`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleColorImageRemove(index)}
+                                        className="p-2 text-red-600 hover:text-red-800"
+                                      >
+                                        <X className="w-5 h-5" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              <button
+                                type="button"
+                                onClick={() => handleColorImageAdd(color)}
+                                className="mt-2 px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center"
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                Agregar imagen para {color}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Métodos de pago permitidos
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="cash_on_delivery"
+                          checked={productForm.allowed_payment_methods.cash_on_delivery}
+                          onChange={(e) => handlePaymentMethodChange('cash_on_delivery', e.target.checked)}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="cash_on_delivery" className="ml-2 block text-sm text-gray-700">
+                          Pago contra entrega
+                        </label>
+                      </div>
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id="card_payment"
+                          checked={productForm.allowed_payment_methods.card}
+                          onChange={(e) => handlePaymentMethodChange('card', e.target.checked)}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="card_payment" className="ml-2 block text-sm text-gray-700">
+                          Pago con tarjeta
+                        </label>
+                      </div>
+                      
+                      {productForm.allowed_payment_methods.card && (
+                        <div className="mt-2 pl-6">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            URL de pago (opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={productForm.allowed_payment_methods.payment_url}
+                            onChange={(e) => handlePaymentUrlChange(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="https://ejemplo.com/pago"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Si se proporciona, los clientes serán redirigidos a esta URL para completar el pago.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4 border-t">
+                    <button
+                      type="button"
+                      onClick={() => setShowProductModal(false)}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Guardar
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderOrdersTab = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Pedidos</h2>
+        </div>
+
+        <OrderManager />
+      </div>
+    );
+  };
+
+  const renderUsersTab = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Usuarios</h2>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        ) : users.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 text-gray-500 px-4 py-8 rounded text-center">
+            No hay usuarios registrados.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de registro</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Último acceso</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {users.map(user => (
+                  <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {user.user_metadata?.full_name || 'Sin nombre'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            ID: {user.id.substring(0, 8)}...
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{user.email}</div>
+                      <div className="text-xs text-gray-500">
+                        {user.email_confirmed_at ? 'Verificado' : 'No verificado'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {user.created_at ? format(new Date(user.created_at), 'dd/MM/yyyy HH:mm') : 'Desconocido'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {user.last_sign_in_at ? format(new Date(user.last_sign_in_at), 'dd/MM/yyyy HH:mm') : 'Nunca'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSettingsTab = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Configuración</h2>
+        </div>
+        
+        <CompanySettings />
+      </div>
+    );
+  };
+
+  const renderPromotionsTab = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">Promociones</h2>
+        </div>
+        
+        <PromotionManager />
+      </div>
+    );
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Sidebar */}
+        <div className="w-full md:w-64 bg-white rounded-lg shadow-md p-4">
+          <h1 className="text-xl font-bold mb-6 text-indigo-700">Panel de Administración</h1>
+          
+          <nav className="space-y-1">
+            <button
+              onClick={() => setActiveTab('products')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'products'
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Package className="mr-3 h-5 w-5" />
+              Productos
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'orders'
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <ShoppingBag className="mr-3 h-5 w-5" />
+              Pedidos
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'users'
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Users className="mr-3 h-5 w-5" />
+              Usuarios
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('promotions')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'promotions'
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Tag className="mr-3 h-5 w-5" />
+              Promociones
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${
+                activeTab === 'settings'
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Settings className="mr-3 h-5 w-5" />
+              Configuración
+            </button>
+          </nav>
+          
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <button
+              onClick={() => navigate('/')}
+              className="w-full flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md"
+            >
+              <ArrowLeft className="mr-3 h-5 w-5" />
+              Volver a la tienda
+            </button>
           </div>
         </div>
-      )}
+        
+        {/* Main content */}
+        <div className="flex-1 bg-white rounded-lg shadow-md p-6">
+          {activeTab === 'products' && renderProductsTab()}
+          {activeTab === 'orders' && renderOrdersTab()}
+          {activeTab === 'users' && renderUsersTab()}
+          {activeTab === 'settings' && renderSettingsTab()}
+          {activeTab === 'promotions' && renderPromotionsTab()}
+        </div>
+      </div>
     </div>
   );
 }
