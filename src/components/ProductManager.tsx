@@ -166,13 +166,13 @@ export default function ProductManager() {
         if (fetchError) {
           console.error('Error al verificar si el producto existe:', fetchError);
           if (fetchError.code === 'PGRST116') {
-            throw new Error('El producto ya no existe');
+            throw new Error('El producto ya no existe en la base de datos');
           }
           throw new Error('Error al verificar si el producto existe');
         }
         
         if (!existingProduct) {
-          throw new Error('El producto ya no existe');
+          throw new Error('El producto ya no existe en la base de datos');
         }
         
         // Si el producto existe, procedemos con la actualización
@@ -183,23 +183,22 @@ export default function ProductManager() {
             updated_at: new Date().toISOString()
           })
           .eq('id', editingProduct.id)
-          .select();
+          .select()
+          .single();
 
         if (updateError) {
           console.error('Error al actualizar el producto:', updateError);
-          throw updateError;
+          throw new Error(`Error al actualizar el producto: ${updateError.message}`);
         }
         
-        if (!updatedProduct || updatedProduct.length === 0) {
-          throw new Error('No se pudo actualizar el producto');
+        if (!updatedProduct) {
+          throw new Error('No se pudo actualizar el producto. Por favor, intente nuevamente.');
         }
         
-        // Actualizamos el producto en el estado local para reflejar los cambios inmediatamente
+        // Actualizamos el producto en el estado local
         setProducts(prevProducts => 
           prevProducts.map(p => 
-            p.id === editingProduct.id 
-              ? { ...p, ...productData, updated_at: new Date().toISOString() } 
-              : p
+            p.id === editingProduct.id ? updatedProduct : p
           )
         );
         
@@ -212,17 +211,20 @@ export default function ProductManager() {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }])
-          .select();
+          .select()
+          .single();
 
         if (error) {
-          console.error('Error detallado de Supabase:', error);
-          throw error;
+          console.error('Error al crear el producto:', error);
+          throw new Error(`Error al crear el producto: ${error.message}`);
         }
         
-        // Añadimos el nuevo producto al estado local para reflejar los cambios inmediatamente
-        if (data && data.length > 0) {
-          setProducts(prevProducts => [data[0], ...prevProducts]);
+        if (!data) {
+          throw new Error('No se pudo crear el producto. Por favor, intente nuevamente.');
         }
+        
+        // Añadimos el nuevo producto al estado local
+        setProducts(prevProducts => [data, ...prevProducts]);
         
         toast.success('Producto creado exitosamente');
       }
@@ -246,15 +248,10 @@ export default function ProductManager() {
       });
       
       // Recargamos los productos para asegurar que tenemos los datos más actualizados
-      loadProducts();
+      await loadProducts();
     } catch (error: any) {
       console.error('Error saving product:', error);
-      // Mostrar mensaje de error más específico si está disponible
-      if (error.message) {
-        toast.error(`Error al guardar el producto: ${error.message}`);
-      } else {
-        toast.error('Error al guardar el producto');
-      }
+      toast.error(error.message || 'Error al guardar el producto');
     }
   };
 
