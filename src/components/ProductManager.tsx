@@ -156,43 +156,34 @@ export default function ProductManager() {
       console.log('Guardando producto con datos:', JSON.stringify(productData, null, 2));
 
       if (editingProduct) {
-        // Verificamos primero si el producto existe
-        const { data: existingProduct, error: fetchError } = await supabase
-          .from('products')
-          .select('id')
-          .eq('id', editingProduct.id)
-          .single();
-        
-        if (fetchError) {
-          console.error('Error al verificar si el producto existe:', fetchError);
-          if (fetchError.code === 'PGRST116') {
-            throw new Error('El producto ya no existe en la base de datos');
-          }
-          throw new Error('Error al verificar si el producto existe');
-        }
-        
-        if (!existingProduct) {
-          throw new Error('El producto ya no existe en la base de datos');
-        }
-        
-        // Si el producto existe, procedemos con la actualización
-        const { data: updatedProduct, error: updateError } = await supabase
+        // Primero actualizamos el producto
+        const { error: updateError } = await supabase
           .from('products')
           .update({
             ...productData,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingProduct.id)
-          .select()
-          .single();
+          .eq('id', editingProduct.id);
 
         if (updateError) {
           console.error('Error al actualizar el producto:', updateError);
           throw new Error(`Error al actualizar el producto: ${updateError.message}`);
         }
         
+        // Luego obtenemos el producto actualizado en una consulta separada
+        const { data: updatedProduct, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', editingProduct.id)
+          .single();
+        
+        if (fetchError) {
+          console.error('Error al obtener el producto actualizado:', fetchError);
+          throw new Error('Error al obtener el producto actualizado');
+        }
+        
         if (!updatedProduct) {
-          throw new Error('No se pudo actualizar el producto. Por favor, intente nuevamente.');
+          throw new Error('No se pudo encontrar el producto actualizado');
         }
         
         // Actualizamos el producto en el estado local
@@ -762,7 +753,8 @@ export default function ProductManager() {
                           value={productForm.allowed_payment_methods.payment_url}
                           onChange={(e) => handlePaymentUrlChange(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-                          placeholder="URL para el pago con tarjeta"
+                          placeholder="URL para el pago con tarj
+eta"
                         />
                       </div>
                     )}
