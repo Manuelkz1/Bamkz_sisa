@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Settings, Package, Tag, Truck, Box } from 'lucide-react';
+import { Settings, Package, Tag, Truck, Box, Users } from 'lucide-react';
 import OrderManager from './OrderManager';
 import PromotionManager from './PromotionManager';
 import ProductManager from './ProductManager';
 import { CompanySettings } from './CompanySettings';
 import { ShippingSettings } from './ShippingSettings';
+import UserManager from './UserManager';
 
 export function AdminPanel() {
   const navigate = useNavigate();
@@ -39,6 +40,13 @@ export function AdminPanel() {
       name: 'Promociones',
       icon: Tag,
       component: PromotionManager,
+      roles: ['admin']
+    },
+    {
+      id: 'users',
+      name: 'Usuarios',
+      icon: Users,
+      component: UserManager,
       roles: ['admin']
     },
     {
