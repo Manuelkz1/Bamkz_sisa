@@ -3,8 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react';
+import { Auth as SupabaseAuth } from '@supabase/auth-ui-react';
+import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { useAuthStore } from '../stores/authStore';
-import { FcGoogle } from 'react-icons/fc';
+import { SocialAuth } from './SocialAuth';
 
 interface AuthProps {
   onAuthSuccess?: () => void;
@@ -14,7 +16,7 @@ interface AuthProps {
 export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, initialize } = useAuthStore();
+  const { user, signIn, initialize } = useAuthStore();
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -23,10 +25,12 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const [lastResendTime, setLastResendTime] = useState(0);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
+  // Inicializar el estado de autenticación al cargar el componente
   useEffect(() => {
     initialize();
   }, [initialize]);
 
+  // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
       console.log('Usuario autenticado, redirigiendo:', user);
@@ -36,42 +40,13 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   }, [user, navigate, location]);
 
   useEffect(() => {
+    // Check URL parameters for email confirmation
     const params = new URLSearchParams(window.location.search);
     if (params.get('email_confirmed') === 'true') {
       toast.success('Email confirmado exitosamente. Ahora puedes iniciar sesión.');
       setIsSignUp(false);
     }
   }, []);
-
-  const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent'
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      // If we have data, it means the OAuth flow started successfully
-      if (data) {
-        console.log('OAuth flow started successfully');
-        // The actual user data will be handled by the auth state change listener
-        // in the auth store, which will create the user record if needed
-      }
-
-    } catch (error: any) {
-      console.error('Error signing in with Google:', error);
-      toast.error('Error al iniciar sesión con Google');
-      setLoading(false);
-    }
-  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,7 +60,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           options: {
             emailRedirectTo: `${window.location.origin}/auth?email_confirmed=true`,
             data: {
-              full_name: email.split('@')[0],
+              full_name: email.split('@')[0], // Set a default name from email
             }
           }
         });
@@ -103,6 +78,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           return;
         }
 
+        // Create user record immediately after successful signup
         if (data.user) {
           const { error: createError } = await supabase
             .from('users')
@@ -127,13 +103,12 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
         );
         setShowResendConfirmation(true);
       } else {
+        // Usar el método signIn del store en lugar de llamar directamente a supabase
         console.log('Intentando iniciar sesión con:', email);
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const result = await signIn(email, password);
         
-        if (error) {
+        if (result?.error) {
+          const error = result.error;
           console.error('Error de inicio de sesión:', error);
           
           if (error.message.includes('Email not confirmed')) {
@@ -150,12 +125,15 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           return;
         }
         
+        // Si llegamos aquí, el inicio de sesión fue exitoso
         console.log('Inicio de sesión exitoso');
         toast.success('¡Inicio de sesión exitoso!');
         onAuthSuccess?.();
         
+        // Forzar una actualización del estado de autenticación
         await initialize();
         
+        // Navigate to home or previous page
         const from = location.state?.from?.pathname || '/';
         console.log('Redirigiendo a:', from);
         navigate(from, { replace: true });
@@ -177,7 +155,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
     const now = Date.now();
     const timeSinceLastResend = now - lastResendTime;
     
-    if (timeSinceLastResend < 60000) {
+    if (timeSinceLastResend < 60000) { // 60 seconds in milliseconds
       const remainingSeconds = Math.ceil((60000 - timeSinceLastResend) / 1000);
       toast.error(`Por favor espera ${remainingSeconds} segundos antes de solicitar otro correo.`);
       return;
@@ -260,24 +238,6 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           </div>
         ) : (
           <>
-            <button
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-              className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              <FcGoogle className="w-5 h-5 mr-2" />
-              Continuar con Google
-            </button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">O</span>
-              </div>
-            </div>
-
             <form className="mt-8 space-y-6" onSubmit={handleEmailAuth}>
               <div className="rounded-md shadow-sm -space-y-px">
                 <div>
@@ -330,6 +290,9 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
                   {isSignUp ? 'Registrarse' : 'Iniciar sesión'}
                 </button>
               </div>
+
+              {/* Componente de autenticación social */}
+              <SocialAuth />
 
               <div className="flex items-center justify-center">
                 <button
