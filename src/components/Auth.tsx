@@ -46,7 +46,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: 'https://bamkz.com',
@@ -58,10 +58,17 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
       });
 
       if (error) throw error;
+
+      // If we have data, it means the OAuth flow started successfully
+      if (data) {
+        console.log('OAuth flow started successfully');
+      }
+
+      // The actual user data will be handled by the auth state change listener
+      // in the auth store, which will create the user record if needed
     } catch (error: any) {
       console.error('Error signing in with Google:', error);
       toast.error('Error al iniciar sesión con Google');
-    } finally {
       setLoading(false);
     }
   };
