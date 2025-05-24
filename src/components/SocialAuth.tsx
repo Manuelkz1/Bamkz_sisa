@@ -16,7 +16,7 @@ export function SocialAuth() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'https://bamkz.com/auth/callback',
+          redirectTo: 'https://xawsitihehpebojtunk.supabase.co/auth/v1/callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
