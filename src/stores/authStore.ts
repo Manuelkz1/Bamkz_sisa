@@ -11,60 +11,84 @@ export const useAuthStore = create((set) => ({
       set({ loading: true, error: null });
       
       // Get Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (session) {
-        // Get user role from database
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+      if (sessionError) {
+        console.error('Error getting session:', sessionError);
+        set({ error: sessionError.message, loading: false });
+        return;
+      }
+      
+      if (!session) {
+        console.log('No active session found');
+        set({ user: null, loading: false });
+        return;
+      }
+
+      console.log('Session found:', session.user.id);
+      
+      // Get or create user record in the database
+      const { data: existingUser, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (userError && userError.code === 'PGRST116') {
+        // User doesn't exist, create new record
+        console.log('Creating new user record for:', session.user.id);
         
-        if (userError) {
-          // If user record doesn't exist, create it
-          if (userError.code === 'PGRST116') {
-            const { data: newUser, error: createError } = await supabase
-              .from('users')
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '',
-                role: 'customer',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .select()
-              .single();
+        const newUserData = {
+          id: session.user.id,
+          email: session.user.email,
+          full_name: session.user.user_metadata?.full_name || 
+                    session.user.user_metadata?.name ||
+                    session.user.email?.split('@')[0] || '',
+          role: 'customer',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
 
-            if (createError) {
-              console.error('Error creating user record:', createError);
-              set({ user: session.user, loading: false });
-              return;
-            }
+        const { data: newUser, error: createError } = await supabase
+          .from('users')
+          .insert([newUserData])
+          .select()
+          .single();
 
-            set({ user: newUser, loading: false });
-            return;
-          }
-
-          console.error('Error fetching user data:', userError);
-          set({ user: session.user, loading: false });
+        if (createError) {
+          console.error('Error creating user record:', createError);
+          // Fall back to basic user data if record creation fails
+          set({ 
+            user: { 
+              ...session.user,
+              role: 'customer',
+              full_name: newUserData.full_name
+            }, 
+            loading: false 
+          });
           return;
         }
-        
-        // Combine auth and database data
-        const userWithRole = {
-          ...session.user,
-          ...userData
-        };
-        
-        console.log('User with role loaded:', userWithRole);
-        set({ user: userWithRole, loading: false });
-      } else {
-        set({ user: null, loading: false });
+
+        console.log('New user record created:', newUser);
+        set({ user: newUser, loading: false });
+        return;
+      } else if (userError) {
+        console.error('Error fetching user data:', userError);
+        set({ error: userError.message, loading: false });
+        return;
       }
+      
+      // Combine auth and database data
+      const userWithRole = {
+        ...session.user,
+        ...existingUser
+      };
+      
+      console.log('User data loaded:', userWithRole);
+      set({ user: userWithRole, loading: false });
+      
     } catch (error) {
-      console.error('Error initializing auth:', error);
+      console.error('Error in initialize:', error);
       set({ error: error.message, loading: false });
     }
   },
@@ -75,21 +99,31 @@ export const useAuthStore = create((set) => ({
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) throw error;
-      set({ user: data.user, loading: false });
-      return data;
+      
+      // Initialize will be called by the auth state change listener
+      return { data, error: null };
     } catch (error) {
       console.error('Error signing in:', error);
       set({ error: error.message, loading: false });
-      return { error };
+      return { data: null, error };
     }
   },
   
   signOut: async () => {
     try {
-      await supabase.auth.signOut();
-      set({ user: null });
-    } catch (error) {
-      console.error('Error signing out:', error);
+      set({ loading: true, error: null });
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      set({ user: null, error: null });
+      
+      // Clear any stored session data
+      await localStorage.removeItem('supabase.auth.token');
+    } catch (error: any) {
+      console.error('Error during sign out:', error);
+      set({ error: 'Error al cerrar sesión' });
+    } finally {
+      set({ loading: false });
     }
   }
 }));

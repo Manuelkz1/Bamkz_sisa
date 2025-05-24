@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, Mail, Lock } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { FcGoogle } from 'react-icons/fc';
 
@@ -14,7 +14,7 @@ interface AuthProps {
 export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signIn, initialize } = useAuthStore();
+  const { user, initialize } = useAuthStore();
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -49,7 +49,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'https://bamkz.com',
+          redirectTo: window.location.origin,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'
@@ -62,10 +62,10 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
       // If we have data, it means the OAuth flow started successfully
       if (data) {
         console.log('OAuth flow started successfully');
+        // The actual user data will be handled by the auth state change listener
+        // in the auth store, which will create the user record if needed
       }
 
-      // The actual user data will be handled by the auth state change listener
-      // in the auth store, which will create the user record if needed
     } catch (error: any) {
       console.error('Error signing in with Google:', error);
       toast.error('Error al iniciar sesión con Google');
@@ -128,10 +128,12 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
         setShowResendConfirmation(true);
       } else {
         console.log('Intentando iniciar sesión con:', email);
-        const result = await signIn(email, password);
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         
-        if (result?.error) {
-          const error = result.error;
+        if (error) {
           console.error('Error de inicio de sesión:', error);
           
           if (error.message.includes('Email not confirmed')) {
