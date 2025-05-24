@@ -3,16 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
 import { Auth } from './components/Auth';
-import HomePage from './pages/HomePage';
-import ProductPage from './pages/ProductPage';
-import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
-import OrderConfirmationPage from './pages/OrderConfirmationPage';
-import AdminDashboard from './pages/AdminDashboard';
-import NotFoundPage from './pages/NotFoundPage';
-import OrdersPage from './pages/OrdersPage';
-import OrderDetailPage from './pages/OrderDetailPage';
-import ProfilePage from './pages/ProfilePage';
+import Home from './components/Home';
+import { SocialAuth } from './components/SocialAuth';
 
 // Componente para manejar el callback de autenticación
 const AuthCallback = () => {
@@ -58,6 +50,17 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
+// Componente temporal para páginas no implementadas
+const NotImplementedPage = () => (
+  <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <h1 className="text-2xl font-bold mb-4">Página en desarrollo</h1>
+    <p className="text-gray-600 mb-4">Esta página está actualmente en desarrollo.</p>
+    <a href="/" className="text-indigo-600 hover:text-indigo-800">
+      Volver a la página principal
+    </a>
+  </div>
+);
+
 function App() {
   const { initialize } = useAuthStore();
   
@@ -70,42 +73,42 @@ function App() {
     <Router>
       <Toaster position="top-center" />
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/products/:id" element={<ProductPage />} />
-        <Route path="/cart" element={<CartPage />} />
+        <Route path="/" element={<Home />} />
+        <Route path="/products/:id" element={<NotImplementedPage />} />
+        <Route path="/cart" element={<NotImplementedPage />} />
         <Route path="/checkout" element={
           <ProtectedRoute>
-            <CheckoutPage />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/order-confirmation/:id" element={
           <ProtectedRoute>
-            <OrderConfirmationPage />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/orders" element={
           <ProtectedRoute>
-            <OrdersPage />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/orders/:id" element={
           <ProtectedRoute>
-            <OrderDetailPage />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/profile" element={
           <ProtectedRoute>
-            <ProfilePage />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={
           <ProtectedRoute adminOnly={true}>
-            <AdminDashboard />
+            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<NotImplementedPage />} />
       </Routes>
     </Router>
   );
