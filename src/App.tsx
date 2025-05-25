@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore';
 import { Auth } from './components/Auth';
 import Home from './components/Home';
 import { SocialAuth } from './components/SocialAuth';
+import ProductPage from './pages/ProductPage';
 
 // Componente para manejar el callback de autenticación
 const AuthCallback = () => {
@@ -74,7 +75,7 @@ function App() {
       <Toaster position="top-center" />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/products/:id" element={<NotImplementedPage />} />
+        <Route path="/products/:id" element={<ProductPage />} />
         <Route path="/cart" element={<NotImplementedPage />} />
         <Route path="/checkout" element={
           <ProtectedRoute>
