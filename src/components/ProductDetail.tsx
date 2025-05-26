@@ -468,7 +468,7 @@ export default function ProductDetail() {
               {relatedProducts.map((relatedProduct) => (
                 <div
                   key={relatedProduct.id}
-                  onClick={() => navigate(`/product/${relatedProduct.id}`)}
+                  onClick={() => navigate(`/products/${relatedProduct.id}`)}
                   className="group relative cursor-pointer"
                 >
                   <div className="aspect-w-1 aspect-h-1 rounded-lg overflow-hidden bg-gray-100">
