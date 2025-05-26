@@ -44,7 +44,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   
   // Si la ruta es solo para admin y el usuario no es admin, redirigir a la página principal
   if (adminOnly && user.role !== 'admin') {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/\" replace />;
   }
   
   // Si el usuario está autenticado y tiene los permisos necesarios, mostrar el contenido
