@@ -55,16 +55,30 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
-// Componente temporal para páginas todavía no implementadas
-const NotImplementedPage = () => (
-  <div className="flex flex-col items-center justify-center min-h-screen p-4">
-    <h1 className="text-2xl font-bold mb-4">Página en desarrollo</h1>
-    <p className="text-gray-600 mb-4">Esta página está actualmente en desarrollo.</p>
-    <a href="/" className="text-indigo-600 hover:text-indigo-800">
-      Volver a la página principal
-    </a>
-  </div>
-);
+// Componente temporal para páginas todavía no implementadas - actualizado para mostrar contenido parcial
+const NotImplementedPage = () => {
+  const { pathname } = window.location;
+  
+  // Si estamos en la ruta de productos, mostrar la lista de productos
+  if (pathname.includes('/products')) {
+    return <ProductPage />;
+  }
+  
+  // Si estamos en la ruta de administrador, mostrar panel de administración
+  if (pathname.includes('/admin')) {
+    return <AdminPanel />;
+  }
+  
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <h1 className="text-2xl font-bold mb-4">Estamos trabajando en esta página</h1>
+      <p className="text-gray-600 mb-4">El contenido estará disponible próximamente.</p>
+      <a href="/" className="text-indigo-600 hover:text-indigo-800">
+        Volver a la página principal
+      </a>
+    </div>
+  );
+};
 
 function App() {
   const { initialize } = useAuthStore();
