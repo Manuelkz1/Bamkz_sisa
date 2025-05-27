@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Order } from '../types';
+import { Order } from '../types/index';
 import { 
   Trash2, 
   Eye, 

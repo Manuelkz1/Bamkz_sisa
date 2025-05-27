@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft } from 'lucide-react'; // Removed Truck, CreditCard as they are not used here
-import type { CartItem } from '../types';
+import type { CartItem } from '../types/index';
 import { useAuthStore } from '../stores/authStore';
 
 interface DropshipperCheckoutProps {

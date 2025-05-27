@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, FileText, Share2, Tag, Clock } from 'lucide-react';
-import type { Product } from '../types';
+import type { Product } from '../types/index';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
 

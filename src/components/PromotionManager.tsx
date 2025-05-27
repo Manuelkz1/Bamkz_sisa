@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { Promotion, Product } from '../types';
+import { Promotion, Product } from '../types/index';
 import { usePromotionStore } from '../stores/promotionStore';
 
 interface PromotionManagerProps {

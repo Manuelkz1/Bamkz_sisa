@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ShoppingCart, Search, Filter, X, Tag } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
-import type { Product } from '../types';
+import type { Product } from '../types/index';
 import { useDebounce } from 'use-debounce';
 
 export function ProductGrid() {

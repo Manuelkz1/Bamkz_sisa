@@ -9,7 +9,7 @@ import {
   Save,
   Search
 } from 'lucide-react';
-import type { Product } from '../types';
+import type { Product } from '../types/index';
 
 export default function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);

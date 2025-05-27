@@ -12,7 +12,7 @@ import {
 import { Link } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useCartStore } from '../stores/cartStore';
-import { Product } from '../types';
+import { Product } from '../types/index';
 import { theme } from '../constants/theme';
 
 export function ProductGrid() {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
-import { User } from '../types';
+import { User } from '../types/index';
 import { Search, RefreshCw } from 'lucide-react';
 
 export default function UserManager() {
