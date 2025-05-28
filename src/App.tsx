@@ -49,7 +49,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 
   // Si la ruta es solo para admin y el usuario no es admin, redirigir a la página principal
   if (adminOnly && user.role !== 'admin') {
-    return <Navigate to="" replace />;
+    return <Navigate to="\" replace />;
   }
 
   // Si el usuario está autenticado y tiene los permisos necesarios, mostrar el contenido
@@ -94,7 +94,7 @@ function App() {
         } />
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/\" replace />} />
       </Routes>
     </Router>
   );
