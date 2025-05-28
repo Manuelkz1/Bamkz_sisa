@@ -10,6 +10,7 @@ import { Cart } from './components/Cart';
 import GuestCheckout from './components/GuestCheckout';
 import { AdminPanel } from './components/AdminPanel';
 import OrderDetails from './components/OrderDetails';
+import MyOrdersPage from './pages/MyOrdersPage';
 
 // Componente para manejar el callback de autenticación
 const AuthCallback = () => {
@@ -55,31 +56,6 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   return children;
 };
 
-// Componente temporal para páginas todavía no implementadas - actualizado para mostrar contenido parcial
-const NotImplementedPage = () => {
-  const { pathname } = window.location;
-  
-  // Si estamos en la ruta de productos, mostrar la lista de productos
-  if (pathname.includes('/products')) {
-    return <ProductPage />;
-  }
-  
-  // Si estamos en la ruta de administrador, mostrar panel de administración
-  if (pathname.includes('/admin')) {
-    return <AdminPanel />;
-  }
-  
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <h1 className="text-2xl font-bold mb-4">Estamos trabajando en esta página</h1>
-      <p className="text-gray-600 mb-4">El contenido estará disponible próximamente.</p>
-      <a href="/" className="text-indigo-600 hover:text-indigo-800">
-        Volver a la página principal
-      </a>
-    </div>
-  );
-};
-
 function App() {
   const { initialize } = useAuthStore();
 
@@ -101,24 +77,14 @@ function App() {
             <GuestCheckout />
           </ProtectedRoute>
         } />
-        <Route path="/order-confirmation/:id" element={
+        <Route path="/my-orders" element={
           <ProtectedRoute>
-            <OrderDetails />
-          </ProtectedRoute>
-        } />
-        <Route path="/orders" element={
-          <ProtectedRoute>
-            <NotImplementedPage />
+            <MyOrdersPage />
           </ProtectedRoute>
         } />
         <Route path="/orders/:id" element={
           <ProtectedRoute>
             <OrderDetails />
-          </ProtectedRoute>
-        } />
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <NotImplementedPage />
           </ProtectedRoute>
         } />
         <Route path="/admin/*" element={
@@ -128,7 +94,7 @@ function App() {
         } />
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="*" element={<NotImplementedPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
