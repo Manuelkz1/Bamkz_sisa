@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { ShoppingBag, User, LogOut, ShoppingCart, Package } from 'lucide-react';
+import { ShoppingBag, User, LogOut, ShoppingCart, Package, Clock } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
@@ -14,7 +14,7 @@ export default function Home() {
   const { settings } = useCompanySettings();
 
   const handleOrdersClick = () => {
-    navigate('/admin?tab=orders');
+    navigate('/my-orders');
   };
 
   return (
@@ -80,13 +80,21 @@ export default function Home() {
                         Panel Admin
                       </Link>
                     )}
-                    {user.role === 'fulfillment' && (
+                    {user.role === 'fulfillment' ? (
                       <button
                         onClick={handleOrdersClick}
                         className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
                       >
                         <Package className="h-5 w-5 mr-2" />
                         Gestionar Pedidos
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleOrdersClick}
+                        className="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 hover:text-indigo-600 w-full"
+                      >
+                        <Clock className="h-5 w-5 mr-2" />
+                        Mis Pedidos
                       </button>
                     )}
                     <button

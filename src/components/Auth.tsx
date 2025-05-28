@@ -25,12 +25,10 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   const [lastResendTime, setLastResendTime] = useState(0);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
-  // Inicializar el estado de autenticación al cargar el componente
   useEffect(() => {
     initialize();
   }, [initialize]);
 
-  // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
       console.log('Usuario autenticado, redirigiendo:', user);
@@ -40,7 +38,6 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
   }, [user, navigate, location]);
 
   useEffect(() => {
-    // Check URL parameters for email confirmation
     const params = new URLSearchParams(window.location.search);
     if (params.get('email_confirmed') === 'true') {
       toast.success('Email confirmado exitosamente. Ahora puedes iniciar sesión.');
@@ -60,7 +57,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           options: {
             emailRedirectTo: `${window.location.origin}/auth?email_confirmed=true`,
             data: {
-              full_name: email.split('@')[0], // Set a default name from email
+              full_name: email.split('@')[0],
             }
           }
         });
@@ -78,7 +75,6 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           return;
         }
 
-        // Create user record immediately after successful signup
         if (data.user) {
           const { error: createError } = await supabase
             .from('users')
@@ -103,7 +99,6 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
         );
         setShowResendConfirmation(true);
       } else {
-        // Usar el método signIn del store en lugar de llamar directamente a supabase
         console.log('Intentando iniciar sesión con:', email);
         const result = await signIn(email, password);
         
@@ -125,15 +120,12 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
           return;
         }
         
-        // Si llegamos aquí, el inicio de sesión fue exitoso
         console.log('Inicio de sesión exitoso');
         toast.success('¡Inicio de sesión exitoso!');
         onAuthSuccess?.();
         
-        // Forzar una actualización del estado de autenticación
         await initialize();
         
-        // Navigate to home or previous page
         const from = location.state?.from?.pathname || '/';
         console.log('Redirigiendo a:', from);
         navigate(from, { replace: true });
@@ -155,7 +147,7 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
     const now = Date.now();
     const timeSinceLastResend = now - lastResendTime;
     
-    if (timeSinceLastResend < 60000) { // 60 seconds in milliseconds
+    if (timeSinceLastResend < 60000) {
       const remainingSeconds = Math.ceil((60000 - timeSinceLastResend) / 1000);
       toast.error(`Por favor espera ${remainingSeconds} segundos antes de solicitar otro correo.`);
       return;
@@ -291,7 +283,6 @@ export function Auth({ onAuthSuccess, onGuestCheckout }: AuthProps) {
                 </button>
               </div>
 
-              {/* Componente de autenticación social */}
               <SocialAuth />
 
               <div className="flex items-center justify-center">
