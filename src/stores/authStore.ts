@@ -1,6 +1,27 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 
+// Constants for retry mechanism
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+// Utility function to retry failed requests
+async function retryWithDelay<T>(
+  operation: () => Promise<T>,
+  retries = MAX_RETRIES,
+  delay = RETRY_DELAY
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryWithDelay(operation, retries - 1, delay);
+    }
+    throw error;
+  }
+}
+
 export const useAuthStore = create((set) => ({
   user: null,
   loading: true,
@@ -10,8 +31,10 @@ export const useAuthStore = create((set) => ({
     try {
       set({ loading: true, error: null });
       
-      // Get Supabase session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      // Get Supabase session with retry mechanism
+      const { data: { session }, error: sessionError } = await retryWithDelay(() => 
+        supabase.auth.getSession()
+      );
       
       if (sessionError) {
         console.error('Error getting session:', sessionError);
@@ -27,12 +50,14 @@ export const useAuthStore = create((set) => ({
 
       console.log('Session found:', session.user.id);
       
-      // Get or create user record in the database
-      const { data: existingUser, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+      // Get or create user record in the database with retry mechanism
+      const { data: existingUser, error: userError } = await retryWithDelay(() =>
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+      );
       
       if (userError && userError.code === 'PGRST116') {
         // User doesn't exist, create new record
@@ -49,11 +74,13 @@ export const useAuthStore = create((set) => ({
           updated_at: new Date().toISOString()
         };
 
-        const { data: newUser, error: createError } = await supabase
-          .from('users')
-          .insert([newUserData])
-          .select()
-          .single();
+        const { data: newUser, error: createError } = await retryWithDelay(() =>
+          supabase
+            .from('users')
+            .insert([newUserData])
+            .select()
+            .single()
+        );
 
         if (createError) {
           console.error('Error creating user record:', createError);
@@ -96,7 +123,9 @@ export const useAuthStore = create((set) => ({
   signIn: async (email, password) => {
     try {
       set({ loading: true, error: null });
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await retryWithDelay(() =>
+        supabase.auth.signInWithPassword({ email, password })
+      );
       
       if (error) throw error;
       
@@ -112,7 +141,9 @@ export const useAuthStore = create((set) => ({
   signOut: async () => {
     try {
       set({ loading: true, error: null });
-      const { error } = await supabase.auth.signOut();
+      const { error } = await retryWithDelay(() =>
+        supabase.auth.signOut()
+      );
       if (error) throw error;
       
       set({ user: null, error: null });
