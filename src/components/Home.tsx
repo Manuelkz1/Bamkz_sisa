@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { ShoppingBag, User, LogOut, ShoppingCart, Package, Clock } from 'lucide-react';
@@ -6,15 +6,21 @@ import { useCartStore } from '../stores/cartStore';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
 import { useCompanySettings } from '../hooks/useCompanySettings';
+import { AuthRequiredModal } from './AuthRequiredModal';
 
 export default function Home() {
   const { user, signOut } = useAuthStore();
   const cartStore = useCartStore();
   const navigate = useNavigate();
   const { settings } = useCompanySettings();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const handleOrdersClick = () => {
-    navigate('/my-orders');
+    if (user) {
+      navigate('/my-orders');
+    } else {
+      setShowAuthModal(true);
+    }
   };
 
   return (
@@ -45,32 +51,40 @@ export default function Home() {
             </div>
             
             {/* Menú móvil y carrito */}
-            <div className="flex items-center">
-              {/* Carrito - Tamaño aumentado para mejor acceso en móvil */}
+            <div className="flex items-center space-x-4">
+              {/* Botón Mis Pedidos */}
+              <button
+                onClick={handleOrdersClick}
+                className="flex items-center text-gray-700 hover:text-indigo-600 transition-colors"
+              >
+                <Clock className="h-6 w-6 sm:mr-2" />
+                <span className="hidden sm:inline">Mis Pedidos</span>
+              </button>
+
+              {/* Carrito */}
               {(!user || user.role !== 'fulfillment') && (
                 <button
                   onClick={() => cartStore.toggleCart()}
-                  className="flex items-center justify-center text-gray-700 hover:text-indigo-600 relative transition-colors p-2 mr-1 sm:mr-2"
+                  className="flex items-center justify-center text-gray-700 hover:text-indigo-600 relative transition-colors p-2"
                   aria-label="Carrito de compras"
                 >
-                  <ShoppingCart className="h-8 w-8" />
+                  <ShoppingCart className="h-6 w-6" />
                   {cartStore.items.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                    <span className="absolute -top-1 -right-1 bg-indigo-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
                       {cartStore.items.length}
                     </span>
                   )}
                 </button>
               )}
               
-              {/* Usuario y opciones - Menú adaptativo */}
+              {/* Usuario y opciones */}
               {user ? (
-                <div className="relative group ml-1 sm:ml-2">
+                <div className="relative group">
                   <button className="flex items-center space-x-1 text-gray-700 hover:text-indigo-600 p-2 rounded-md">
                     <User className="h-6 w-6" />
                     <span className="hidden sm:inline truncate max-w-[120px]">{user.full_name || user.email}</span>
                   </button>
                   
-                  {/* Menú desplegable - Adaptado para móvil con mejor área táctil */}
                   <div className="absolute right-0 w-48 mt-1 py-2 bg-white rounded-md shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-gray-100">
                     {user.role === 'admin' && (
                       <Link
@@ -180,6 +194,7 @@ export default function Home() {
       </footer>
 
       {(!user || user.role !== 'fulfillment') && <Cart />}
+      <AuthRequiredModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 }
