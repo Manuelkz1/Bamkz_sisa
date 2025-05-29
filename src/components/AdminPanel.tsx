@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { Settings, Package, Tag, Truck, Box, Users } from 'lucide-react';
+import { Settings, Package, Tag, Truck, Box, Users, MessageSquare } from 'lucide-react';
 import OrderManager from './OrderManager';
 import PromotionManager from './PromotionManager';
 import ProductManager from './ProductManager';
 import { CompanySettings } from './CompanySettings';
 import { ShippingSettings } from './ShippingSettings';
 import UserManager from './UserManager';
+import ReviewManager from './ReviewManager';
 
 export function AdminPanel() {
   const navigate = useNavigate();
@@ -61,6 +62,13 @@ export function AdminPanel() {
       name: 'Envíos',
       icon: Truck,
       component: ShippingSettings,
+      roles: ['admin']
+    },
+    {
+      id: 'reviews',
+      name: 'Reseñas',
+      icon: MessageSquare,
+      component: ReviewManager,
       roles: ['admin']
     }
   ];

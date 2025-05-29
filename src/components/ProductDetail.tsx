@@ -6,6 +6,7 @@ import { ArrowLeft, FileText, Share2, Tag, Clock } from 'lucide-react';
 import type { Product } from '../types/index';
 import { useCartStore } from '../stores/cartStore';
 import { useAuthStore } from '../stores/authStore';
+import { ProductReviews } from './ProductReviews';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -458,6 +459,11 @@ export default function ProductDetail() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-16 border-t border-gray-200 pt-8">
+          <ProductReviews productId={product.id} />
         </div>
 
         {/* Related Products */}
