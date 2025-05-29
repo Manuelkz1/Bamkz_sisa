@@ -20,6 +20,8 @@ export interface Product {
     payment_url?: string;
   };
   promotion?: Promotion;
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export interface CartItem {
@@ -55,12 +57,9 @@ export interface Order {
   order_items?: Array<{
     id: string;
     quantity: number;
-    price_at_time: number;
     selected_color?: string;
     products: {
-      id: string;
       name: string;
-      images?: string[];
     };
   }>;
   dropshipper_id?: string;
@@ -79,9 +78,9 @@ export interface Review {
   user_id?: string;
   rating: number;
   comment: string;
-  created_at: string;
   name?: string;
   approved?: boolean;
+  created_at: string;
 }
 
 export interface User {
