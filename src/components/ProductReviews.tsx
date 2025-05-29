@@ -41,14 +41,14 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
       setReviews(data || []);
 
       if (user) {
-        const { data: userReview } = await supabase
+        const { data: userReview, error: userReviewError } = await supabase
           .from('reviews')
           .select('*')
           .eq('product_id', productId)
-          .eq('user_id', user.id)
-          .single();
+          .eq('user_id', user.id);
 
-        setUserReviewed(!!userReview);
+        if (userReviewError) throw userReviewError;
+        setUserReviewed(userReview && userReview.length > 0);
       }
     } catch (error) {
       console.error('Error loading reviews:', error);
