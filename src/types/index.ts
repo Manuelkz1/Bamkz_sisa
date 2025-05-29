@@ -80,7 +80,7 @@ export interface Review {
   rating: number;
   comment: string;
   created_at: string;
-  Name?: string;
+  name?: string;
   approved?: boolean;
 }
 
