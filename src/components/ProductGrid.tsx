@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useCartStore } from '../stores/cartStore';
 import { Product } from '../types/index';
 import { toast } from 'react-hot-toast';
-import { Search, Filter, X, Tag } from 'lucide-react';
+import { Search, Filter, X, Tag, ShoppingCart, Star } from 'lucide-react';
 import { useDebounce } from 'use-debounce';
 
 export function ProductGrid() {
@@ -200,7 +200,7 @@ export function ProductGrid() {
                 }}
               />
               {product.available_colors && product.available_colors.length > 0 && (
-                <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs">
+                <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs font-medium">
                   {product.available_colors.length} colores
                 </div>
               )}
@@ -243,16 +243,14 @@ export function ProductGrid() {
                 <div className="flex items-center mt-2">
                   <div className="flex">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <span
+                      <Star
                         key={star}
-                        className={`text-lg ${
+                        className={`h-4 w-4 ${
                           star <= Math.round(product.averageRating)
-                            ? 'text-yellow-400'
+                            ? 'text-yellow-400 fill-current'
                             : 'text-gray-300'
                         }`}
-                      >
-                        ★
-                      </span>
+                      />
                     ))}
                   </div>
                   <span className="ml-2 text-sm text-gray-600">
@@ -264,14 +262,18 @@ export function ProductGrid() {
               {product.stock > 0 ? (
                 <button
                   onClick={(e) => handleAddToCart(product, e)}
-                  className="w-full mt-4 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors"
+                  className="w-full mt-4 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors flex items-center justify-center"
                 >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
                   Agregar al carrito
                 </button>
               ) : (
-                <p className="w-full mt-4 text-center text-red-500 py-2">
+                <button
+                  disabled
+                  className="w-full mt-4 bg-gray-200 text-gray-500 py-2 px-4 rounded cursor-not-allowed flex items-center justify-center"
+                >
                   Agotado
-                </p>
+                </button>
               )}
             </div>
           </Link>
