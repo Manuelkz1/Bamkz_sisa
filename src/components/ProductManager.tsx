@@ -24,6 +24,7 @@ export default function ProductManager() {
     price: '',
     category: '',
     stock: '',
+    shipping_days: '3',
     images: [] as string[],
     available_colors: [] as string[],
     color_images: [] as {color: string, image: string}[],
@@ -73,6 +74,7 @@ export default function ProductManager() {
       price: product.price.toString(),
       category: product.category || '',
       stock: product.stock.toString(),
+      shipping_days: product.shipping_days?.toString() || '3',
       images: product.images || [],
       available_colors: product.available_colors || [],
       color_images: product.color_images || [],
@@ -142,6 +144,7 @@ export default function ProductManager() {
         price: parseFloat(productForm.price),
         category: productForm.category.trim(),
         stock: parseInt(productForm.stock),
+        shipping_days: parseInt(productForm.shipping_days),
         images: filteredImages,
         available_colors: filteredColors,
         color_images: validColorImages,
@@ -228,6 +231,7 @@ export default function ProductManager() {
         price: '',
         category: '',
         stock: '',
+        shipping_days: '3',
         images: [],
         available_colors: [],
         color_images: [],
@@ -393,6 +397,7 @@ export default function ProductManager() {
               price: '',
               category: '',
               stock: '',
+              shipping_days: '3',
               images: [''],
               available_colors: [],
               color_images: [],
@@ -580,6 +585,24 @@ export default function ProductManager() {
                       min="0"
                       required
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Días de envío *
+                    </label>
+                    <input
+                      type="number"
+                      value={productForm.shipping_days}
+                      onChange={(e) => setProductForm(prev => ({ ...prev, shipping_days: e.target.value }))}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Ej: 3"
+                      min="1"
+                      required
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Tiempo estimado de entrega en días
+                    </p>
                   </div>
                 </div>
 

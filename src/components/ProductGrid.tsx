@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useCartStore } from '../stores/cartStore';
 import { Product } from '../types/index';
 import { toast } from 'react-hot-toast';
-import { Search, Filter, X, Tag, ShoppingCart, Star } from 'lucide-react';
+import { Search, Filter, X, Tag, ShoppingCart, Star, Truck } from 'lucide-react';
 import { useDebounce } from 'use-debounce';
 
 export function ProductGrid() {
@@ -237,6 +237,14 @@ export function ProductGrid() {
                     ${product.price.toFixed(2)}
                   </span>
                 )}
+              </div>
+
+              {/* Días de envío */}
+              <div className="mt-2 flex items-center text-sm text-gray-600">
+                <Truck className="h-4 w-4 mr-1 text-indigo-500" />
+                <span>
+                  Llega en {product.shipping_days || 3} días
+                </span>
               </div>
 
               {product.reviewCount > 0 && (

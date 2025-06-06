@@ -22,6 +22,7 @@ export interface Product {
   promotion?: Promotion;
   averageRating?: number;
   reviewCount?: number;
+  shipping_days?: number;
 }
 
 export interface CartItem {
