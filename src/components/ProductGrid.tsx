@@ -182,7 +182,7 @@ export function ProductGrid() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
         {products.map((product) => (
           <Link
             key={product.id}
@@ -193,7 +193,7 @@ export function ProductGrid() {
               <img
                 src={product.images[0]}
                 alt={product.name}
-                className="w-full h-48 object-cover"
+                className="w-full h-32 sm:h-48 object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = 'https://via.placeholder.com/400x300?text=No+Image';
@@ -205,8 +205,8 @@ export function ProductGrid() {
                 </div>
               )}
             </div>
-            <div className="p-4">
-              <h3 className="text-lg font-semibold text-gray-900 truncate">
+            <div className="p-2 sm:p-4">
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 truncate">
                 {product.name}
               </h3>
               <p className="text-sm text-gray-600 line-clamp-2 mt-1">
@@ -270,7 +270,7 @@ export function ProductGrid() {
               {product.stock > 0 ? (
                 <button
                   onClick={(e) => handleAddToCart(product, e)}
-                  className="w-full mt-4 bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 transition-colors flex items-center justify-center"
+                  className="w-full mt-2 sm:mt-4 bg-indigo-600 text-white py-1 sm:py-2 px-2 sm:px-4 rounded hover:bg-indigo-700 transition-colors flex items-center justify-center text-xs sm:text-sm"
                 >
                   <ShoppingCart className="h-5 w-5 mr-2" />
                   Agregar al carrito
@@ -278,7 +278,7 @@ export function ProductGrid() {
               ) : (
                 <button
                   disabled
-                  className="w-full mt-4 bg-gray-200 text-gray-500 py-2 px-4 rounded cursor-not-allowed flex items-center justify-center"
+                  className="w-full mt-2 sm:mt-4 bg-gray-200 text-gray-500 py-1 sm:py-2 px-2 sm:px-4 rounded cursor-not-allowed flex items-center justify-center text-xs sm:text-sm"
                 >
                   Agotado
                 </button>
